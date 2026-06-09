@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 150" width="500" height="150">
+  <g transform="translate(10, 110)">
+    <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="95" fill="#1874C2" letter-spacing="-2">Neelgund</text>
+  </g>
+  <g transform="translate(300, 25)">
+    <!-- Roof shape /\/\ -->
+    <path d="M 0 55 L 35 15 L 60 45 L 85 15 L 120 55 L 95 55 L 85 43 L 60 70 L 35 43 L 25 55 Z" fill="#5EBA46" />
+    <!-- Leaf -->
+    <path d="M 55 18 C 50 -10, 85 -15, 90 5 C 95 25, 60 20, 55 18 Z" fill="#5EBA46" />
+    <path d="M 55 18 C 65 5, 80 5, 90 5" fill="none" stroke="#FFFFFF" stroke-width="2" />
+  </g>
+  <!-- Green underline -->
+  <rect x="310" y="125" width="125" height="8" fill="#5EBA46" rx="4" />
+</svg>
