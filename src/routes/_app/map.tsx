@@ -6,7 +6,7 @@ import {
   LocateFixed, Map as MapIcon, List, X, Play, Pause, SkipBack,
   ChevronLeft, ChevronRight, MoreHorizontal, RefreshCw,
   Navigation, Clock, Zap, MapPin, Users, ArrowLeft, Search,
-  Signal, Calendar,
+  Signal,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/map")({
@@ -265,7 +265,7 @@ function MapPage() {
   const [loadingTrail, setLoadingTrail] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
   const [replayIndex, setReplayIndex] = useState(0);
-  const [replaySpeed, setReplaySpeed] = useState(1);
+  const [replaySpeed] = useState(1);
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const [tileMode, setTileMode] = useState<"map" | "satellite">("map");
 
@@ -281,7 +281,6 @@ function MapPage() {
   const tripPolylineRef = useRef<any>(null);
   const tripMarkersRef = useRef<any[]>([]);
   const playbackMarkerRef = useRef<any>(null);
-  const playbackOverlayRef = useRef<any>(null);
 
   const summary = useMemo(() => deriveTripSummary(trail), [trail]);
   const points = summary.points;
@@ -747,7 +746,6 @@ function MapPage() {
     tripMarkersRef.current.forEach(m => m.setMap(null));
     tripMarkersRef.current = [];
     if (playbackMarkerRef.current) { playbackMarkerRef.current.setMap(null); playbackMarkerRef.current = null; }
-    if (playbackOverlayRef.current) { playbackOverlayRef.current.setMap(null); playbackOverlayRef.current = null; }
     if (points.length < 2) return;
 
     const pathCoords = points.map(p => ({ lat: p.latitude, lng: p.longitude }));
@@ -767,52 +765,11 @@ function MapPage() {
     summary.stops.forEach(stop => addPin({ lat: stop.latitude, lng: stop.longitude }, String(stop.number), "#F59E0B"));
 
     const initials = selectedEmployee?.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() ?? "?";
-    const transparentSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><circle cx="22" cy="22" r="22" fill="transparent"/></svg>`;
-    
+    const markerSvg = buildEmployeeMarkerSvg(initials, true, selectedEmployee?.avatarUrl ?? null);
     playbackMarkerRef.current = new window.google.maps.Marker({
       position: pathCoords[0], map: tripMapInstanceRef.current, zIndex: 10,
-      icon: { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(transparentSvg), scaledSize: new window.google.maps.Size(44, 44), anchor: new window.google.maps.Point(22, 22) },
+      icon: { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(markerSvg), scaledSize: new window.google.maps.Size(44, 44), anchor: new window.google.maps.Point(22, 22) },
     });
-
-    const overlay = new window.google.maps.OverlayView();
-    overlay.onAdd = function() {
-      const container = document.createElement("div");
-      container.style.cssText = "position:absolute;pointer-events:none;display:flex;flex-direction:column;align-items:center;";
-      
-      const avatarWrap = document.createElement("div");
-      avatarWrap.style.cssText = "width:44px;height:44px;border-radius:50%;border:2px solid #1E3A5F;background-color:white;box-shadow:0 2px 6px rgba(0,0,0,0.3);position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;";
-      
-      if (selectedEmployee?.avatarUrl) {
-        const img = document.createElement("img");
-        img.src = selectedEmployee.avatarUrl;
-        img.style.cssText = "width:100%;height:100%;object-fit:cover;";
-        avatarWrap.appendChild(img);
-      } else {
-        avatarWrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E3A5F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
-      }
-      
-      container.appendChild(avatarWrap);
-      (this as any)._container = container;
-      this.getPanes()!.overlayLayer.appendChild(container);
-    };
-    overlay.draw = function() {
-      const proj = this.getProjection();
-      if (!proj || !(this as any)._container) return;
-      const pos = playbackMarkerRef.current?.getPosition();
-      if (!pos) return;
-      const pt = proj.fromLatLngToDivPixel(pos);
-      if (!pt) return;
-      const container = (this as any)._container as HTMLDivElement;
-      container.style.left = (pt.x - 22) + "px";
-      container.style.top = (pt.y - 22) + "px";
-    };
-    overlay.onRemove = function() {
-      if ((this as any)._container?.parentNode) {
-        (this as any)._container.parentNode.removeChild((this as any)._container);
-      }
-    };
-    overlay.setMap(tripMapInstanceRef.current);
-    playbackOverlayRef.current = overlay;
     const bounds = new window.google.maps.LatLngBounds();
     pathCoords.forEach(c => bounds.extend(c));
     tripMapInstanceRef.current.fitBounds(bounds);
@@ -822,12 +779,8 @@ function MapPage() {
   useEffect(() => {
     if (!playbackMarkerRef.current || !points[replayIndex]) return;
     const p = points[replayIndex];
-    const newPos = new window.google.maps.LatLng(p.latitude, p.longitude);
-    playbackMarkerRef.current.setPosition(newPos);
-    if (playbackOverlayRef.current) {
-      playbackOverlayRef.current.draw();
-    }
-    tripMapInstanceRef.current?.panTo(newPos);
+    playbackMarkerRef.current.setPosition({ lat: p.latitude, lng: p.longitude });
+    tripMapInstanceRef.current?.panTo({ lat: p.latitude, lng: p.longitude });
   }, [replayIndex, points]);
 
   // Replay animation
@@ -1007,32 +960,6 @@ function MapPage() {
         {mapListMode === "map" ? (
           <>
             <div ref={fleetMapRef} className="flex-1 w-full" style={{ height: "100%" }} />
-
-            {/* Beautiful Map Date Selector */}
-            {role !== "employee" && (
-              <div className="absolute top-4 left-4 sm:left-6 z-20 flex items-center bg-white/80 backdrop-blur-xl rounded-full shadow-[0_4px_20px_rgb(0,0,0,0.1)] border border-white/60 p-1.5 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.15)] hover:bg-white/95 group/selector">
-                <button onClick={goBackDate} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 hover:text-[#1E3A5F] transition-all"><ChevronLeft className="w-5 h-5" /></button>
-                <div className="relative flex items-center justify-center px-4 h-8 cursor-pointer min-w-[120px]">
-                  <Calendar className="w-4 h-4 text-[#1E3A5F] mr-2.5 opacity-80 group-hover/selector:opacity-100 transition-opacity" />
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    max={todayStr()}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setSelectedDate(e.target.value);
-                      }
-                    }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                    title="Select Date"
-                  />
-                  <span className="text-[13px] font-bold text-slate-700 group-hover/selector:text-[#1E3A5F] transition-colors whitespace-nowrap">
-                    {formatDateLabel(selectedDate)}
-                  </span>
-                </div>
-                <button onClick={goForwardDate} disabled={selectedDate >= todayStr()} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 hover:text-[#1E3A5F] transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500"><ChevronRight className="w-5 h-5" /></button>
-              </div>
-            )}
 
             {/* Bottom sheet */}
             <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl border-t border-gray-100 transition-all duration-300" style={{ height: sheetExpanded ? 420 : 80 }}>
@@ -1427,11 +1354,9 @@ function MapPage() {
         {/* Replay mini bar */}
         {isReplaying && (
           <div className="absolute bottom-[220px] left-1/2 -translate-x-1/2 bg-[#1E3A5F] text-white rounded-full px-4 py-2 flex items-center gap-3 shadow-xl z-30">
-            <button onClick={() => { setReplayIndex(0); setIsReplaying(true); }}><SkipBack className="w-4 h-4 hover:text-blue-300 transition-colors" /></button>
-            <button onClick={() => setIsReplaying(false)}><Pause className="w-4 h-4 hover:text-blue-300 transition-colors" /></button>
-            <span className="text-xs font-semibold w-8 text-center">{Math.round(progress * 100)}%</span>
-            <div className="w-px h-4 bg-white/20 mx-1"></div>
-            <button onClick={() => setReplaySpeed(s => s >= 8 ? 1 : s * 2)} className="text-xs font-bold w-6 text-center hover:text-blue-300 transition-colors">{replaySpeed}x</button>
+            <button onClick={() => { setReplayIndex(0); setIsReplaying(true); }}><SkipBack className="w-4 h-4" /></button>
+            <button onClick={() => setIsReplaying(false)}><Pause className="w-4 h-4" /></button>
+            <span className="text-xs font-semibold">{Math.round(progress * 100)}%</span>
           </div>
         )}
       </div>
