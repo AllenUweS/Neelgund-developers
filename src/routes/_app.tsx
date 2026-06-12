@@ -60,7 +60,7 @@ function AppLayout() {
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between p-4 border-b bg-white sticky top-0 z-30 shadow-sm">
           <div className="flex items-center gap-2">
-            <img src="/logo-v3.png?v=20260612" alt="Neelgund Developers" className="h-8 w-auto object-contain" />
+            <img src="/logo-v4.png?v=20260612" alt="Neelgund Developers" className="h-8 w-auto object-contain" />
           </div>
           <button 
             onClick={() => setIsMobileOpen(true)} 
