@@ -1,9 +1,6 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist/client",
+  "outputDirectory": ".vercel/output",
   "framework": null,
-  "installCommand": "npm install",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "installCommand": "npm install"
 }
