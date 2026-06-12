@@ -1,27 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "dist/server/index.mjs",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "dist/client/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/assets/(.*)",
-      "dest": "/dist/client/assets/$1"
-    },
-    {
-      "src": "/(.*\\.(js|css|svg|ico|png|jpg|jpeg|gif|woff2?))",
-      "dest": "/dist/client/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/dist/server/index.mjs"
-    }
-  ]
+  "buildCommand": "npm run build",
+  "outputDirectory": ".vercel/output",
+  "framework": null,
+  "installCommand": "npm install"
 }
