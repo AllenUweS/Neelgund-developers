@@ -230,7 +230,7 @@ export function LoginForm(): JSX.Element {
     <div className="w-full max-w-sm p-8 space-y-6 bg-white rounded-[24px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-gray-100">
       <div className="text-center flex flex-col items-center">
         <div className="bg-white px-2 py-2 mb-2 w-full flex justify-center">
-          <img src="/logo-v2.png" alt="Neelgund Developers" className="h-14 w-auto object-contain" />
+          <img src="/logo-v3.png?v=20260612" alt="Neelgund Developers" className="h-14 w-auto object-contain" />
         </div>
         <p className="mt-1 text-sm text-gray-500 font-medium">Sign in to continue</p>
       </div>
