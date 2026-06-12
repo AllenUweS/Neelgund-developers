@@ -2,8 +2,4 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".vercel/output",
   "framework": null
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> e5d05b0 (fix: vercel nitro preset, remove dist from git)
