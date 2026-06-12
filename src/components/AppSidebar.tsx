@@ -41,7 +41,7 @@ export function AppSidebar({
     <aside className={className || "hidden md:flex w-64 flex-col bg-[#154D8C] text-white shadow-xl z-20"}>
       <div className="h-20 flex items-center justify-center px-5 border-b border-white/10">
         <div className="w-full bg-white rounded-xl py-2 px-3 shadow-md flex items-center justify-center">
-          <img src="/logo.svg" alt="Neelgund Developers" className="h-10 w-auto object-contain" />
+          <img src="/logo.png" alt="Neelgund Developers" className="h-10 w-auto object-contain" />
         </div>
       </div>
       <nav className="flex-1 px-3 py-5 space-y-1.5 overflow-y-auto">
