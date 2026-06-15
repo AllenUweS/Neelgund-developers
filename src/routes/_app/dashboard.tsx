@@ -210,7 +210,7 @@ function DashboardPage() {
           { label: "Total Workforce", value: totalEmployees, icon: Users, color: "from-blue-500 to-cyan-400", shadow: "shadow-blue-500/20" },
           { label: "Active Today", value: presentToday, hint: `${attendancePct}% attendance`, icon: CheckCircle2, color: "from-emerald-400 to-green-500", shadow: "shadow-emerald-500/20" },
           { label: "In the Field", value: inTheField, hint: "Live Tracking", icon: MapPin, color: "from-amber-400 to-orange-500", shadow: "shadow-amber-500/20" },
-          { label: "Total Leads", value: totalLeads, hint: "CRM Database", icon: Briefcase, color: "from-violet-500 to-purple-500", shadow: "shadow-violet-500/20" },
+          ...(role !== "hr" ? [{ label: "Total Leads", value: totalLeads, hint: "CRM Database", icon: Briefcase, color: "from-violet-500 to-purple-500", shadow: "shadow-violet-500/20" }] : []),
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + (i * 0.05) }}>
             <Card className="relative overflow-hidden p-6 rounded-3xl border-0 bg-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
@@ -317,40 +317,42 @@ function DashboardPage() {
       </div>
 
       {/* Lead Pipeline Bar Chart */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-        <Card className="p-6 rounded-3xl border-0 shadow-lg bg-white overflow-hidden">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">Lead Pipeline</h3>
-              <p className="text-sm text-gray-500">Conversion breakdown by stage</p>
+      {role !== "hr" && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <Card className="p-6 rounded-3xl border-0 shadow-lg bg-white overflow-hidden">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Lead Pipeline</h3>
+                <p className="text-sm text-gray-500">Conversion breakdown by stage</p>
+              </div>
+              <Badge variant="outline" className="text-[#154D8C] border-[#154D8C]/20 bg-blue-50/50 rounded-full px-3 py-1">
+                {totalLeads} Total Leads
+              </Badge>
             </div>
-            <Badge variant="outline" className="text-[#154D8C] border-[#154D8C]/20 bg-blue-50/50 rounded-full px-3 py-1">
-              {totalLeads} Total Leads
-            </Badge>
-          </div>
-          <div className="h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={leadsByStage} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8B5CF6" />
-                    <stop offset="100%" stopColor="#C4B5FD" />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="stage" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                <Tooltip
-                  cursor={{ fill: 'rgba(139, 92, 246, 0.05)' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                  itemStyle={{ color: '#8B5CF6', fontWeight: 'bold' }}
-                />
-                <Bar dataKey="v" name="Leads" fill="url(#barGradient)" radius={[6, 6, 0, 0]} maxBarSize={60} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </motion.div>
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={leadsByStage} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#C4B5FD" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis dataKey="stage" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(139, 92, 246, 0.05)' }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                    itemStyle={{ color: '#8B5CF6', fontWeight: 'bold' }}
+                  />
+                  <Bar dataKey="v" name="Leads" fill="url(#barGradient)" radius={[6, 6, 0, 0]} maxBarSize={60} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </motion.div>
+      )}
     </div>
   );
 }

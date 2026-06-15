@@ -153,34 +153,71 @@ function deriveTripSummary(trail: LocationPoint[]): TripSummary {
   const stops: TripStop[] = [];
   const gaps: TripGap[] = [];
   let stopNum = 0;
-  let stopStart: number | null = null;
+  
   const GAP_THRESHOLD_MS = 5 * 60 * 1000;
+  const STOP_RADIUS_M = 50;
+  const STOP_DURATION_MS = 5 * 60 * 1000;
+
+  let stopStartIdx = 0;
 
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];
     const cur = sorted[i];
-    totalM += haversineMeters(prev.latitude, prev.longitude, cur.latitude, cur.longitude);
+    
+    // Distance and Max Speed
+    const distM = haversineMeters(prev.latitude, prev.longitude, cur.latitude, cur.longitude);
+    totalM += distM;
     const s = cur.speedKmh ?? 0;
     if (s > maxSpeed) maxSpeed = s;
+    if (s > 2) movingSpeeds.push(s);
 
+    // Gaps
     const timeDiff = new Date(cur.recordedAt).getTime() - new Date(prev.recordedAt).getTime();
     if (timeDiff > GAP_THRESHOLD_MS) {
       gaps.push({ startAt: prev.recordedAt, endAt: cur.recordedAt, durationMs: timeDiff });
     }
 
-    const moving = s > 2;
-    if (!moving) {
-      if (stopStart === null) stopStart = i - 1;
-    } else {
-      if (stopStart !== null) {
-        const durMs = new Date(cur.recordedAt).getTime() - new Date(sorted[stopStart].recordedAt).getTime();
-        if (durMs >= 5 * 60 * 1000) { // 5 minutes threshold
-          stopNum++;
-          stops.push({ id: `stop-${stopNum}`, number: stopNum, latitude: sorted[stopStart].latitude, longitude: sorted[stopStart].longitude, durationMs: durMs, arrivedAt: sorted[stopStart].recordedAt });
-        }
-        stopStart = null;
+    // Stop Detection (Distance from stopStartIdx)
+    const distFromStart = haversineMeters(
+      sorted[stopStartIdx].latitude, 
+      sorted[stopStartIdx].longitude, 
+      cur.latitude, 
+      cur.longitude
+    );
+
+    if (distFromStart > STOP_RADIUS_M) {
+      // We moved outside the stop radius. Check if we were there long enough.
+      const stopDurMs = new Date(prev.recordedAt).getTime() - new Date(sorted[stopStartIdx].recordedAt).getTime();
+      if (stopDurMs >= STOP_DURATION_MS) {
+        stopNum++;
+        stops.push({ 
+          id: `stop-${stopNum}`, 
+          number: stopNum, 
+          latitude: sorted[stopStartIdx].latitude, 
+          longitude: sorted[stopStartIdx].longitude, 
+          durationMs: stopDurMs, 
+          arrivedAt: sorted[stopStartIdx].recordedAt 
+        });
       }
-      if (s > 2) movingSpeeds.push(s);
+      // Reset stop start to current point
+      stopStartIdx = i;
+    }
+  }
+
+  // Check if trip ended while in a stop
+  if (sorted.length > 0) {
+    const lastIdx = sorted.length - 1;
+    const stopDurMs = new Date(sorted[lastIdx].recordedAt).getTime() - new Date(sorted[stopStartIdx].recordedAt).getTime();
+    if (stopDurMs >= STOP_DURATION_MS) {
+      stopNum++;
+      stops.push({ 
+        id: `stop-${stopNum}`, 
+        number: stopNum, 
+        latitude: sorted[stopStartIdx].latitude, 
+        longitude: sorted[stopStartIdx].longitude, 
+        durationMs: stopDurMs, 
+        arrivedAt: sorted[stopStartIdx].recordedAt 
+      });
     }
   }
 
@@ -392,7 +429,7 @@ function MapPage() {
         .gte("recorded_at", startUtcIso)
         .lte("recorded_at", endUtcIso)
         .order("recorded_at", { ascending: false })
-        .limit(2000);
+        .limit(100000);
 
       if (locRows && locRows.length > 0) {
         for (const row of locRows) {
@@ -406,7 +443,7 @@ function MapPage() {
           .gte("recorded_at", startUtcIso)
           .lte("recorded_at", endUtcIso)
           .order("recorded_at", { ascending: false })
-          .limit(2000);
+          .limit(100000);
 
         for (const row of (liveRows ?? [])) {
           const empId = row.employee_id ?? row.user_id;
@@ -517,25 +554,48 @@ function MapPage() {
       let pts: LocationPoint[] = [];
 
       // Try location_points first
-      const { data: lpData } = await supabase
-        .from("location_points")
-        .select("latitude, longitude, recorded_at, speed_kmh")
-        .eq("employee_id", userId)
-        .gte("recorded_at", startUtcIso)
-        .lte("recorded_at", endUtcIso)
-        .order("recorded_at", { ascending: true });
+      let lpData: any[] = [];
+      let start = 0;
+      const PAGE_SIZE = 1000;
+      
+      while (true) {
+        const { data } = await supabase
+          .from("location_points")
+          .select("latitude, longitude, recorded_at, speed_kmh")
+          .eq("employee_id", userId)
+          .gte("recorded_at", startUtcIso)
+          .lte("recorded_at", endUtcIso)
+          .order("recorded_at", { ascending: true })
+          .range(start, start + PAGE_SIZE - 1);
+          
+        if (!data || data.length === 0) break;
+        lpData = lpData.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        start += PAGE_SIZE;
+      }
 
       if (lpData && lpData.length > 0) {
         pts = lpData.map((p: any) => ({ latitude: p.latitude, longitude: p.longitude, recordedAt: p.recorded_at, speedKmh: p.speed_kmh ?? null }));
       } else {
         // Fallback to live_locations
-        const { data: llData } = await supabase
-          .from("live_locations")
-          .select("latitude, longitude, recorded_at")
-          .eq("user_id", userId)
-          .gte("recorded_at", startUtcIso)
-          .lte("recorded_at", endUtcIso)
-          .order("recorded_at", { ascending: true });
+        let llData: any[] = [];
+        let startLl = 0;
+        
+        while (true) {
+          const { data } = await supabase
+            .from("live_locations")
+            .select("latitude, longitude, recorded_at")
+            .eq("user_id", userId)
+            .gte("recorded_at", startUtcIso)
+            .lte("recorded_at", endUtcIso)
+            .order("recorded_at", { ascending: true })
+            .range(startLl, startLl + PAGE_SIZE - 1);
+            
+          if (!data || data.length === 0) break;
+          llData = llData.concat(data);
+          if (data.length < PAGE_SIZE) break;
+          startLl += PAGE_SIZE;
+        }
 
         pts = (llData ?? []).map((p: any) => ({ latitude: p.latitude, longitude: p.longitude, recordedAt: p.recorded_at, speedKmh: null }));
       }

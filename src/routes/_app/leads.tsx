@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -1053,7 +1053,15 @@ function EmployeesView({
 
 function LeadsPage() {
   const { user, role } = useAuth();
-  const isElevated = role === "admin" || role === "super_admin" || role === "manager" || role === "hr";
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (role === "hr") {
+      navigate({ to: "/dashboard", replace: true });
+    }
+  }, [role, navigate]);
+
+  const isElevated = role === "admin" || role === "super_admin" || role === "manager";
   const isAdminOrHR = role === "admin" || role === "super_admin" || role === "hr";
   const isManager = role === "manager";
 

@@ -213,85 +213,89 @@ function AnalyticsPage() {
         </motion.div>
 
         {/* Lead Source Breakdown */}
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }}>
-          <Card className="p-6 rounded-3xl border-0 shadow-lg bg-white h-full flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Lead Sources</h3>
-                <p className="text-sm text-gray-500">Where are your leads coming from?</p>
+        {role !== "hr" && (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }}>
+            <Card className="p-6 rounded-3xl border-0 shadow-lg bg-white h-full flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Lead Sources</h3>
+                  <p className="text-sm text-gray-500">Where are your leads coming from?</p>
+                </div>
+                <PieChartIcon className="h-5 w-5 text-gray-400" />
               </div>
-              <PieChartIcon className="h-5 w-5 text-gray-400" />
-            </div>
-            <div className="flex-1 min-h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie 
-                    data={leadSources} 
-                    dataKey="value" 
-                    nameKey="name" 
-                    cx="50%" 
-                    cy="50%" 
-                    innerRadius={75} 
-                    outerRadius={105} 
-                    paddingAngle={3}
-                    stroke="none"
-                  >
-                    {leadSources.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#4B5563' }}/>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </motion.div>
+              <div className="flex-1 min-h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={leadSources} 
+                      dataKey="value" 
+                      nameKey="name" 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={75} 
+                      outerRadius={105} 
+                      paddingAngle={3}
+                      stroke="none"
+                    >
+                      {leadSources.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                    />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#4B5563' }}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Lead Pipeline & Priority */}
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}>
-          <Card className="p-6 rounded-3xl border-0 shadow-lg bg-white h-full flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Lead Conversion</h3>
-                <p className="text-sm text-gray-500">Pipeline health across all stages</p>
-              </div>
-              <Layers className="h-5 w-5 text-gray-400" />
-            </div>
-            
-            <div className="h-[200px] mb-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={leadPipeline} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="pipeGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#EC4899" />
-                      <stop offset="100%" stopColor="#FBCFE8" />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="stage" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 10}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 11}} />
-                  <Tooltip 
-                    cursor={{fill: 'rgba(236, 72, 153, 0.05)'}}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                    itemStyle={{ color: '#EC4899', fontWeight: 'bold' }}
-                  />
-                  <Bar dataKey="count" name="Leads" fill="url(#pipeGradient)" radius={[4, 4, 0, 0]} maxBarSize={45} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Priority Mini-stats */}
-            <div className="mt-auto grid grid-cols-3 gap-3">
-              {leadPriority.map(p => (
-                <div key={p.name} className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <div className="text-xl font-black" style={{ color: p.color }}>{p.value}</div>
-                  <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mt-1">{p.name}</div>
+        {role !== "hr" && (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}>
+            <Card className="p-6 rounded-3xl border-0 shadow-lg bg-white h-full flex flex-col">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Lead Conversion</h3>
+                  <p className="text-sm text-gray-500">Pipeline health across all stages</p>
                 </div>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
+                <Layers className="h-5 w-5 text-gray-400" />
+              </div>
+              
+              <div className="h-[200px] mb-6">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={leadPipeline} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="pipeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#EC4899" />
+                        <stop offset="100%" stopColor="#FBCFE8" />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="stage" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 10}} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 11}} />
+                    <Tooltip 
+                      cursor={{fill: 'rgba(236, 72, 153, 0.05)'}}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                      itemStyle={{ color: '#EC4899', fontWeight: 'bold' }}
+                    />
+                    <Bar dataKey="count" name="Leads" fill="url(#pipeGradient)" radius={[4, 4, 0, 0]} maxBarSize={45} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Priority Mini-stats */}
+              <div className="mt-auto grid grid-cols-3 gap-3">
+                {leadPriority.map(p => (
+                  <div key={p.name} className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex flex-col items-center justify-center text-center">
+                    <div className="text-xl font-black" style={{ color: p.color }}>{p.value}</div>
+                    <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mt-1">{p.name}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </motion.div>
+        )}
       </div>
     </div>
   );

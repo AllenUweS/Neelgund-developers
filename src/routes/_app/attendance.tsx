@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { LogIn, LogOut, Clock, CheckCircle2, XCircle, AlertCircle, Users, Timer, Play, Pause } from "lucide-react";
+import { LogIn, LogOut, Clock, CheckCircle2, XCircle, AlertCircle, Users, Timer, Play, Pause, ChevronLeft, ChevronRight, Download, CalendarDays, LayoutGrid } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/PageHeader";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { MonthlyView } from "@/components/attendance/MonthlyView";
 
 export const Route = createFileRoute("/_app/attendance")({
   head: () => ({ meta: [{ title: "Attendance — Neelgund Developers" }] }),
@@ -132,10 +133,11 @@ const statusColor: Record<string, string> = {
 
 function AttendancePage() {
   const { user, role } = useAuth();
-  const isElevated = role === "admin" || role === "super_admin" || role === "manager";
+  const isElevated = role === "admin" || role === "super_admin" || role === "manager" || role === "hr";
   const [today, setToday] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [teamToday, setTeamToday] = useState<any[]>([]);
+  const [selectedTeamDate, setSelectedTeamDate] = useState(new Date().toISOString().slice(0, 10));
   const [profileMap, setProfileMap] = useState<Record<string, any>>({});
   const [busy, setBusy] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<any>(null);
@@ -151,6 +153,21 @@ function AttendancePage() {
   const [regCheckOut, setRegCheckOut] = useState("18:00");
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewReg, setReviewReg] = useState<any>(null);
+
+  // Manual Attendance Entry State
+  const [allowedProfiles, setAllowedProfiles] = useState<any[]>([]);
+  const [showManualDialog, setShowManualDialog] = useState(false);
+  const [manualEmpId, setManualEmpId] = useState("");
+  const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10));
+  const [manualCheckIn, setManualCheckIn] = useState("09:00");
+  const [manualCheckOut, setManualCheckOut] = useState("18:00");
+  const [manualStatus, setManualStatus] = useState("present");
+  
+  // Export State
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [exportSelectedEmployees, setExportSelectedEmployees] = useState<string[]>([]);
   
   // New location tracking state
   const [allOffices, setAllOffices] = useState<any[]>([]);
@@ -158,13 +175,16 @@ function AttendancePage() {
   const [nearestOffice, setNearestOffice] = useState<any>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   
+  // View mode
+  const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
+
   const timerInterval = useRef<NodeJS.Timeout | null>(null);
 
   const load = async () => {
     if (!user) return;
-    const date = new Date().toISOString().slice(0, 10);
+    const currentDate = new Date().toISOString().slice(0, 10);
     // Use employee_id (real schema column)
-    const { data: t } = await supabase.from("attendance").select("*").eq("employee_id", user.id).eq("date", date).maybeSingle();
+    const { data: t } = await supabase.from("attendance").select("*").eq("employee_id", user.id).eq("date", currentDate).maybeSingle();
     setToday(t);
     const { data: h } = await supabase.from("attendance").select("*").eq("employee_id", user.id).order("date", { ascending: false }).limit(30);
     setHistory(h ?? []);
@@ -176,22 +196,30 @@ function AttendancePage() {
     setAllOffices(offices ?? []);
 
     if (isElevated) {
-      const { data: team } = await supabase.from("attendance").select("*").eq("date", date).order("created_at");
-      const { data: pRegs } = await supabase.from("attendance_regularizations").select("*").eq("status", "pending").order("created_at");
-      
-      const empIds = [...new Set([
-        ...(team ?? []).map((a: any) => a.employee_id),
-        ...(pRegs ?? []).map((r: any) => r.employee_id)
-      ])];
+      let profileQuery = supabase.from("profiles").select("id, name, email");
+      if (role === "manager") {
+        profileQuery = profileQuery.eq("manager_id", user.id);
+      }
+      const { data: profs } = await profileQuery;
+      const validProfs = profs ?? [];
+      setAllowedProfiles(validProfs);
+
+      const map: Record<string, any> = {};
+      validProfs.forEach((p: any) => { map[p.id] = p; });
+      setProfileMap(map);
+
+      const empIds = validProfs.map(p => p.id);
       
       if (empIds.length > 0) {
-        const { data: profs } = await supabase.from("profiles").select("id, name, email").in("id", empIds);
-        const map: Record<string, any> = {};
-        (profs ?? []).forEach((p: any) => { map[p.id] = p; });
-        setProfileMap(map);
+        const { data: team } = await supabase.from("attendance").select("*").eq("date", selectedTeamDate).in("employee_id", empIds).order("created_at");
+        const { data: pRegs } = await supabase.from("attendance_regularizations").select("*").eq("status", "pending").in("employee_id", empIds).order("created_at");
+        
+        setTeamToday(team ?? []);
+        setPendingRegularizations(pRegs ?? []);
+      } else {
+        setTeamToday([]);
+        setPendingRegularizations([]);
       }
-      setTeamToday(team ?? []);
-      setPendingRegularizations(pRegs ?? []);
     }
   };
 
@@ -221,7 +249,35 @@ function AttendancePage() {
     };
   }, [today?.check_in_time, today?.check_out_time]);
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [user, selectedTeamDate]);
+
+  const addDays = (dateStr: string, days: number) => {
+    const d = new Date(dateStr + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const goBackDate = () => {
+    setSelectedTeamDate(prev => addDays(prev, -1));
+  };
+
+  const goForwardDate = () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    setSelectedTeamDate(prev => {
+      const next = addDays(prev, 1);
+      return next <= todayStr ? next : prev;
+    });
+  };
+
+  const formatTeamDateLabel = (dateStr: string) => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (dateStr === todayStr) return "Today";
+    const d = new Date(dateStr + "T00:00:00");
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (dateStr === yesterday.toISOString().slice(0, 10)) return "Yesterday";
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  };
 
   // Start live location tracking
   useEffect(() => {
@@ -433,11 +489,132 @@ function AttendancePage() {
     load();
   };
 
+  const submitManualAttendance = async () => {
+    if (!manualEmpId || !manualDate) return toast.error("Please select an employee and date");
+    setBusy(true);
+
+    const inTime = new Date(`${manualDate}T${manualCheckIn}:00+05:30`).toISOString();
+    const outTime = manualCheckOut ? new Date(`${manualDate}T${manualCheckOut}:00+05:30`).toISOString() : null;
+
+    const { error } = await supabase.from("attendance").upsert({
+      employee_id: manualEmpId,
+      date: manualDate,
+      check_in_time: inTime,
+      check_out_time: outTime,
+      status: manualStatus as any,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "employee_id,date" });
+
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Manual attendance recorded successfully");
+    setShowManualDialog(false);
+    load();
+  };
+
+  const handleExport = async () => {
+    if (exportSelectedEmployees.length === 0) return toast.error("Please select at least one employee to export.");
+    if (exportStartDate > exportEndDate) return toast.error("Start date cannot be after end date.");
+    
+    setBusy(true);
+    
+    const { data: attendanceData, error } = await supabase
+      .from("attendance")
+      .select("*, profiles!inner(id, name, email)")
+      .in("employee_id", exportSelectedEmployees)
+      .gte("date", exportStartDate)
+      .lte("date", exportEndDate)
+      .order("date", { ascending: false });
+      
+    setBusy(false);
+    
+    if (error) {
+      return toast.error("Failed to fetch export data: " + error.message);
+    }
+    
+    if (!attendanceData || attendanceData.length === 0) {
+      return toast.error("No attendance records found for the selected criteria.");
+    }
+    
+    // Generate CSV
+    const headers = ["Date", "Employee Name", "Email", "Status", "Check In", "Check Out", "Duration"];
+    
+    const rows = attendanceData.map((record: any) => {
+      const empName = record.profiles?.name || record.profiles?.email || "Unknown";
+      const empEmail = record.profiles?.email || "Unknown";
+      const inTime = record.check_in_time ? fmt(record.check_in_time) : "—";
+      const outTime = record.check_out_time ? fmt(record.check_out_time) : "—";
+      const duration = record.check_in_time && record.check_out_time ? calculateDuration(record.check_in_time, record.check_out_time) : "—";
+      const status = record.status ? record.status.replace("_", " ") : "—";
+      
+      return [
+        record.date,
+        `"${empName}"`,
+        `"${empEmail}"`,
+        status,
+        `"${inTime}"`,
+        `"${outTime}"`,
+        `"${duration}"`
+      ].join(",");
+    });
+    
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Attendance_Export_${exportStartDate}_to_${exportEndDate}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success("Export successful!");
+    setShowExportDialog(false);
+  };
+
+  const toggleExportEmployee = (id: string) => {
+    setExportSelectedEmployees(prev => 
+      prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllExportEmployees = () => {
+    if (exportSelectedEmployees.length === allowedProfiles.length) {
+      setExportSelectedEmployees([]);
+    } else {
+      setExportSelectedEmployees(allowedProfiles.map(p => p.id));
+    }
+  };
+
   return (
     <>
-      <PageHeader title="Attendance" subtitle={new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <PageHeader title="Attendance" subtitle={new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} />
+        
+        {isElevated && (
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl shrink-0">
+            <button 
+              onClick={() => setViewMode("daily")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === "daily" ? "bg-white text-[#154D8C] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              <LayoutGrid className="w-4 h-4" /> Daily View
+            </button>
+            <button 
+              onClick={() => setViewMode("monthly")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === "monthly" ? "bg-white text-[#154D8C] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              <CalendarDays className="w-4 h-4" /> Monthly View
+            </button>
+          </div>
+        )}
+      </div>
 
-      {/* Location Status Bar */}
+      {viewMode === "monthly" && isElevated ? (
+        <MonthlyView allowedProfiles={allowedProfiles} />
+      ) : (
+        <>
+          {/* Location Status Bar */}
       {allOffices.length > 0 && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
           <div className={`p-3 rounded-xl border flex items-center justify-between shadow-sm transition-colors ${locationError ? 'bg-red-50 border-red-200' : (currentDistance !== null && nearestOffice && currentDistance <= nearestOffice.radius_meters) ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
@@ -526,13 +703,66 @@ function AttendancePage() {
       </motion.div>
 
       {/* Team today (admin/manager) - Clickable cards */}
-      {isElevated && teamToday.length > 0 && (
+      {isElevated && (
         <div className="mb-6">
-          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Users className="h-4 w-4" style={{ color: "#154D8C" }} />Team Today ({teamToday.length})</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Users className="h-4 w-4" style={{ color: "#154D8C" }} />Team Attendance ({teamToday.length})</h3>
+            <div className="flex items-center gap-2">
+              
+              {/* Date Slider Component */}
+              <div className="flex items-center bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden h-8">
+                <button 
+                  onClick={goBackDate} 
+                  className="w-8 h-full flex items-center justify-center hover:bg-gray-50 transition-colors border-r border-gray-100"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-600" />
+                </button>
+                
+                <div className="relative group flex items-center justify-center px-4 h-full min-w-[100px] hover:bg-gray-50 transition-colors">
+                  <input 
+                    type="date" 
+                    value={selectedTeamDate}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setSelectedTeamDate(e.target.value)}
+                    onClick={(e) => {
+                      if ('showPicker' in HTMLInputElement.prototype) {
+                        try { (e.target as any).showPicker(); } catch (err) {}
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    title="Select Date"
+                  />
+                  <span className="text-xs font-bold text-gray-700 group-hover:text-[#154D8C] transition-colors whitespace-nowrap">
+                    {formatTeamDateLabel(selectedTeamDate)}
+                  </span>
+                </div>
+
+                <button 
+                  onClick={goForwardDate} 
+                  disabled={selectedTeamDate >= new Date().toISOString().slice(0, 10)} 
+                  className="w-8 h-full flex items-center justify-center hover:bg-gray-50 transition-colors border-l border-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+
+              <Button onClick={() => { setExportSelectedEmployees(allowedProfiles.map(p => p.id)); setShowExportDialog(true); }} size="sm" variant="outline" className="rounded-xl shadow-sm text-xs h-8 px-3 whitespace-nowrap bg-white text-[#154D8C] border-[#154D8C] hover:bg-slate-50">
+                <Download className="w-4 h-4 mr-1.5" /> Export
+              </Button>
+
+              <Button onClick={() => setShowManualDialog(true)} size="sm" className="bg-[#154D8C] text-white hover:bg-[#154D8C]/90 rounded-xl shadow-sm text-xs h-8 px-3 whitespace-nowrap">
+                + Manual Entry
+              </Button>
+            </div>
+          </div>
+          {teamToday.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {teamToday.map(a => {
               const employeeName = profileMap[a.employee_id]?.name || profileMap[a.employee_id]?.email || "Unknown";
-              const isStillCheckedIn = a.check_in_time && !a.check_out_time;
+              const isToday = a.date === new Date().toISOString().slice(0, 10);
+              const isStillCheckedIn = isToday && a.check_in_time && !a.check_out_time;
+              const missedCheckOut = !isToday && a.check_in_time && !a.check_out_time;
+              const hasCompletedShift = a.check_in_time && a.check_out_time;
               
               return (
                 <Card 
@@ -552,10 +782,22 @@ function AttendancePage() {
                     <div className="text-xs text-muted-foreground">
                       {a.check_in_time ? fmt(a.check_in_time) : "—"} {a.check_out_time ? `→ ${fmt(a.check_out_time)}` : ""}
                     </div>
-                    {isStillCheckedIn && a.check_in_time && (
+                    {isStillCheckedIn && (
                       <div className="text-xs text-blue-600 flex items-center gap-1 mt-1">
                         <Timer className="h-3 w-3" />
                         <LiveTimer startTime={a.check_in_time} isActive={true} />
+                      </div>
+                    )}
+                    {missedCheckOut && (
+                      <div className="text-xs text-red-500 flex items-center gap-1 mt-1 font-medium">
+                        <AlertCircle className="h-3 w-3" />
+                        Missed Check-out
+                      </div>
+                    )}
+                    {hasCompletedShift && (
+                      <div className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                        <Clock className="h-3 w-3" />
+                        Duration: {calculateDuration(a.check_in_time, a.check_out_time)}
                       </div>
                     )}
                   </div>
@@ -571,6 +813,12 @@ function AttendancePage() {
               );
             })}
           </div>
+          ) : (
+            <div className="text-center p-6 bg-slate-50 border border-slate-100 rounded-2xl">
+              <Users className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              <div className="text-sm text-slate-500">No team attendance recorded for {new Date(selectedTeamDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" })}.</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -825,6 +1073,162 @@ function AttendancePage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Add Manual Entry Dialog */}
+      <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
+        <DialogContent className="rounded-2xl max-w-sm">
+          <DialogHeader>
+            <DialogTitle style={{ color: "#154D8C" }}>Manual Attendance Entry</DialogTitle>
+            <DialogDescription>Manually record attendance for an employee</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Employee</label>
+              <select 
+                value={manualEmpId} 
+                onChange={(e) => setManualEmpId(e.target.value)}
+                className="w-full p-2.5 text-sm bg-white border border-gray-200 rounded-lg outline-none focus:border-[#154D8C] focus:ring-1 focus:ring-[#154D8C]"
+              >
+                <option value="">Select Employee</option>
+                {allowedProfiles.map(p => (
+                  <option key={p.id} value={p.id}>{p.name || p.email}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Date</label>
+              <input 
+                type="date" 
+                value={manualDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setManualDate(e.target.value)}
+                className="w-full p-2.5 text-sm bg-white border border-gray-200 rounded-lg outline-none focus:border-[#154D8C] focus:ring-1 focus:ring-[#154D8C]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Check In Time</label>
+                <TimePicker12 value={manualCheckIn} onChange={setManualCheckIn} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Check Out Time</label>
+                <TimePicker12 value={manualCheckOut} onChange={setManualCheckOut} />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Status</label>
+              <div className="flex gap-2">
+                {["present", "half_day", "absent"].map(status => (
+                  <button
+                    key={status}
+                    onClick={() => setManualStatus(status)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all border ${
+                      manualStatus === status 
+                        ? (status === "present" ? "bg-green-100 text-green-700 border-green-300" 
+                           : status === "half_day" ? "bg-amber-100 text-amber-700 border-amber-300"
+                           : "bg-red-100 text-red-700 border-red-300")
+                        : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    {status.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button 
+              onClick={submitManualAttendance} 
+              disabled={busy || !manualEmpId || !manualDate} 
+              className="w-full rounded-xl mt-2" 
+              style={{ backgroundColor: "#154D8C" }}
+            >
+              Save Attendance
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Dialog */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle style={{ color: "#154D8C" }} className="flex items-center gap-2">
+              <Download className="w-5 h-5" /> Export Attendance
+            </DialogTitle>
+            <DialogDescription>Download attendance records as a CSV file</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Start Date</label>
+                <input 
+                  type="date" 
+                  value={exportStartDate}
+                  max={exportEndDate}
+                  onChange={(e) => setExportStartDate(e.target.value)}
+                  className="w-full p-2 text-sm bg-white border border-gray-200 rounded-lg outline-none focus:border-[#154D8C] focus:ring-1 focus:ring-[#154D8C]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 mb-1.5 block">End Date</label>
+                <input 
+                  type="date" 
+                  value={exportEndDate}
+                  min={exportStartDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setExportEndDate(e.target.value)}
+                  className="w-full p-2 text-sm bg-white border border-gray-200 rounded-lg outline-none focus:border-[#154D8C] focus:ring-1 focus:ring-[#154D8C]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-gray-700">Select Employees</label>
+                <button 
+                  onClick={toggleAllExportEmployees} 
+                  className="text-xs text-[#154D8C] font-medium hover:underline"
+                >
+                  {exportSelectedEmployees.length === allowedProfiles.length ? "Deselect All" : "Select All"}
+                </button>
+              </div>
+              <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 h-48 overflow-y-auto">
+                {allowedProfiles.map(p => (
+                  <label key={p.id} className="flex items-center gap-3 p-2.5 hover:bg-white border-b border-gray-100 cursor-pointer transition-colors last:border-0">
+                    <input 
+                      type="checkbox" 
+                      checked={exportSelectedEmployees.includes(p.id)}
+                      onChange={() => toggleExportEmployee(p.id)}
+                      className="w-4 h-4 rounded text-[#154D8C] focus:ring-[#154D8C]"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{p.name || p.email}</div>
+                      <div className="text-xs text-gray-500 truncate">{p.email}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1.5 text-right">
+                {exportSelectedEmployees.length} selected
+              </div>
+            </div>
+
+            <Button 
+              onClick={handleExport} 
+              disabled={busy || exportSelectedEmployees.length === 0} 
+              className="w-full rounded-xl mt-2" 
+              style={{ backgroundColor: "#154D8C" }}
+            >
+              <Download className="w-4 h-4 mr-2" /> Download CSV
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+        </>
+      )}
     </>
   );
 }
