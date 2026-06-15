@@ -4,6 +4,7 @@ import { Loader2, Menu, Building2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AnimatePresence, motion } from "framer-motion";
+import { NotificationsBell } from "@/components/NotificationsBell";
 
 export const Route = createFileRoute("/_app")({ component: AppLayout });
 
@@ -56,18 +57,27 @@ function AppLayout() {
         )}
       </AnimatePresence>
 
-      <main className="flex-1 overflow-y-auto flex flex-col">
+      <main className="flex-1 overflow-y-auto flex flex-col relative">
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between p-4 border-b bg-white sticky top-0 z-30 shadow-sm">
+        <div className="md:hidden flex items-center justify-between p-4 border-b bg-white sticky top-0 z-30 shadow-sm h-16">
           <div className="flex items-center gap-2">
             <img src="/logo-v4.png?v=20260612" alt="Neelgund Developers" className="h-8 w-auto object-contain" />
           </div>
-          <button 
-            onClick={() => setIsMobileOpen(true)} 
-            className="p-2 -mr-2 rounded-full hover:bg-slate-100 text-[#154D8C] transition-colors"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          
+          <div className="flex items-center gap-3">
+            <NotificationsBell />
+            <button 
+              onClick={() => setIsMobileOpen(true)} 
+              className="p-2 -mr-2 rounded-full hover:bg-slate-100 text-[#154D8C] transition-colors focus:outline-none focus:ring-2 focus:ring-[#154D8C]/20"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Floating Bell for Desktop */}
+        <div className="hidden md:block absolute top-6 right-8 z-50">
+          <NotificationsBell />
         </div>
 
         <div className="max-w-7xl mx-auto px-6 py-8 w-full"><Outlet /></div>
