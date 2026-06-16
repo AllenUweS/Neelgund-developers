@@ -46,6 +46,25 @@ function formatDuration(minutes: number) {
   return `${mins}m`;
 }
 
+// Format duration in seconds to HH:MM:SS
+function formatDurationSeconds(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function formatDurationSecondsObj(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return {
+    h: h.toString().padStart(2, '0'),
+    m: m.toString().padStart(2, '0'),
+    s: s.toString().padStart(2, '0')
+  };
+}
+
 // Custom 12-hour time picker component
 function TimePicker12({ value, onChange }: { value: string, onChange: (v: string) => void }) {
   const [h, m] = value.split(":");
@@ -103,14 +122,14 @@ function LiveTimer({ startTime, isActive }: { startTime: string; isActive: boole
     const start = new Date(startTime).getTime();
     const interval = setInterval(() => {
       const now = new Date().getTime();
-      const diffMinutes = Math.floor((now - start) / 60000);
-      setDuration(diffMinutes);
-    }, 60000); // Update every minute
+      const diffSeconds = Math.floor((now - start) / 1000);
+      setDuration(diffSeconds);
+    }, 1000); // Update every second
     
     // Initial calculation
     const now = new Date().getTime();
-    const diffMinutes = Math.floor((now - start) / 60000);
-    setDuration(diffMinutes);
+    const diffSeconds = Math.floor((now - start) / 1000);
+    setDuration(diffSeconds);
     
     return () => clearInterval(interval);
   }, [startTime, isActive]);
@@ -118,9 +137,12 @@ function LiveTimer({ startTime, isActive }: { startTime: string; isActive: boole
   if (!isActive || !startTime) return null;
   
   return (
-    <div className="flex items-center gap-2 text-blue-600 font-semibold">
-      <Timer className="h-4 w-4 animate-pulse" />
-      <span>Duration: {formatDuration(duration)}</span>
+    <div className="flex items-center gap-1.5 text-blue-700 bg-blue-50/80 px-2 py-1 rounded-md border border-blue-200 shadow-sm font-mono text-[11px] font-bold w-fit inline-flex">
+      <div className="relative flex h-2 w-2 mr-0.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+      </div>
+      <span className="tabular-nums tracking-wider">{formatDurationSeconds(duration)}</span>
     </div>
   );
 }
@@ -230,15 +252,15 @@ function AttendancePage() {
       timerInterval.current = setInterval(() => {
         const start = new Date(today.check_in_time).getTime();
         const now = new Date().getTime();
-        const diffMinutes = Math.floor((now - start) / 60000);
-        setLiveDuration(diffMinutes);
-      }, 60000);
+        const diffSeconds = Math.floor((now - start) / 1000);
+        setLiveDuration(diffSeconds);
+      }, 1000);
       
       // Initial calculation
       const start = new Date(today.check_in_time).getTime();
       const now = new Date().getTime();
-      const diffMinutes = Math.floor((now - start) / 60000);
-      setLiveDuration(diffMinutes);
+      const diffSeconds = Math.floor((now - start) / 1000);
+      setLiveDuration(diffSeconds);
     } else {
       if (timerInterval.current) clearInterval(timerInterval.current);
       setLiveDuration(0);
@@ -649,19 +671,52 @@ function AttendancePage() {
           </div>
           
           {/* Live Timer Display */}
-          {isCheckedIn && !isCheckedOut && (
-            <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-blue-600 animate-pulse" />
-                  <span className="text-sm font-medium text-blue-900">Live Timer</span>
-                </div>
-                <div className="text-2xl font-bold text-blue-700">
-                  {formatDuration(liveDuration)}
+          {isCheckedIn && !isCheckedOut && (() => {
+            const time = formatDurationSecondsObj(liveDuration);
+            return (
+              <div className="mb-6 relative overflow-hidden p-6 bg-gradient-to-br from-slate-900 via-[#154D8C] to-[#0A2A52] rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-800/60">
+                <div className="absolute top-0 right-0 w-40 h-40 bg-blue-400/20 rounded-full blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-400/10 rounded-full blur-3xl"></div>
+                
+                <div className="relative flex flex-col items-center justify-center">
+                  <div className="flex items-center gap-2.5 mb-5 bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/10 shadow-sm">
+                    <div className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>
+                    </div>
+                    <span className="text-xs font-bold text-blue-50 uppercase tracking-[0.2em]">Active Shift</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-center gap-3 sm:gap-5 font-mono">
+                    <div className="flex flex-col items-center group">
+                      <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white text-4xl sm:text-6xl font-black rounded-2xl p-3 sm:p-4 w-16 sm:w-24 text-center shadow-[inset_0_2px_10px_rgba(255,255,255,0.1)] tabular-nums transition-transform group-hover:scale-105">
+                        {time.h}
+                      </div>
+                      <span className="text-[10px] sm:text-xs text-blue-200/80 mt-3 font-bold tracking-[0.2em]">HOURS</span>
+                    </div>
+                    
+                    <div className="text-3xl sm:text-5xl text-blue-300/70 font-black self-start mt-2 sm:mt-4 animate-pulse">:</div>
+                    
+                    <div className="flex flex-col items-center group">
+                      <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white text-4xl sm:text-6xl font-black rounded-2xl p-3 sm:p-4 w-16 sm:w-24 text-center shadow-[inset_0_2px_10px_rgba(255,255,255,0.1)] tabular-nums transition-transform group-hover:scale-105">
+                        {time.m}
+                      </div>
+                      <span className="text-[10px] sm:text-xs text-blue-200/80 mt-3 font-bold tracking-[0.2em]">MINS</span>
+                    </div>
+                    
+                    <div className="text-3xl sm:text-5xl text-blue-300/70 font-black self-start mt-2 sm:mt-4 animate-pulse">:</div>
+                    
+                    <div className="flex flex-col items-center group">
+                      <div className="bg-white/10 backdrop-blur-md border border-white/20 text-blue-100 text-4xl sm:text-6xl font-black rounded-2xl p-3 sm:p-4 w-16 sm:w-24 text-center shadow-[inset_0_2px_10px_rgba(255,255,255,0.1)] tabular-nums transition-transform group-hover:scale-105">
+                        {time.s}
+                      </div>
+                      <span className="text-[10px] sm:text-xs text-blue-200/80 mt-3 font-bold tracking-[0.2em]">SECS</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
           
           <div className="grid grid-cols-2 gap-4 mb-5">
             <div className="text-center p-3 bg-muted/30 rounded-xl">
@@ -783,8 +838,7 @@ function AttendancePage() {
                       {a.check_in_time ? fmt(a.check_in_time) : "—"} {a.check_out_time ? `→ ${fmt(a.check_out_time)}` : ""}
                     </div>
                     {isStillCheckedIn && (
-                      <div className="text-xs text-blue-600 flex items-center gap-1 mt-1">
-                        <Timer className="h-3 w-3" />
+                      <div className="mt-2 mb-1">
                         <LiveTimer startTime={a.check_in_time} isActive={true} />
                       </div>
                     )}

@@ -302,7 +302,7 @@ function MapPage() {
   const [loadingTrail, setLoadingTrail] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
   const [replayIndex, setReplayIndex] = useState(0);
-  const [replaySpeed] = useState(1);
+  const [replaySpeed, setReplaySpeed] = useState(1);
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const [tileMode, setTileMode] = useState<"map" | "satellite">("map");
 
@@ -824,34 +824,68 @@ function MapPage() {
     addPin(pathCoords[pathCoords.length - 1], "E", "#EF4444", 5);
     summary.stops.forEach(stop => addPin({ lat: stop.latitude, lng: stop.longitude }, String(stop.number), "#F59E0B"));
 
-    const initials = selectedEmployee?.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() ?? "?";
-    const markerSvg = buildEmployeeMarkerSvg(initials, true, selectedEmployee?.avatarUrl ?? null);
+    // Native Marker avoids floating/jitter issues
+    const initials = selectedEmployee?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() ?? "?";
+    const defaultSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
+      <circle cx="22" cy="22" r="20" fill="#10B981" stroke="white" stroke-width="3"/>
+      <text x="22" y="27" text-anchor="middle" font-size="14" font-weight="800" font-family="system-ui,sans-serif" fill="white">${initials}</text>
+    </svg>`;
+    
     playbackMarkerRef.current = new window.google.maps.Marker({
       position: pathCoords[0], map: tripMapInstanceRef.current, zIndex: 10,
-      icon: { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(markerSvg), scaledSize: new window.google.maps.Size(44, 44), anchor: new window.google.maps.Point(22, 22) },
+      icon: { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(defaultSvg), scaledSize: new window.google.maps.Size(44, 44), anchor: new window.google.maps.Point(22, 22) },
     });
+
+    if (selectedEmployee?.avatarUrl) {
+      const img = new Image();
+      img.crossOrigin = "Anonymous"; // Crucial for canvas toDataURL
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 44; canvas.height = 44;
+        const ctx = canvas.getContext("2d");
+        if (ctx && playbackMarkerRef.current) {
+          ctx.beginPath(); ctx.arc(22, 22, 22, 0, Math.PI * 2); ctx.fillStyle = "white"; ctx.fill();
+          ctx.beginPath(); ctx.arc(22, 22, 20, 0, Math.PI * 2); ctx.fillStyle = "#10B981"; ctx.fill();
+          ctx.beginPath(); ctx.arc(22, 22, 17, 0, Math.PI * 2); ctx.clip();
+          ctx.drawImage(img, 0, 0, 44, 44);
+          playbackMarkerRef.current.setIcon({
+            url: canvas.toDataURL("image/png"),
+            scaledSize: new window.google.maps.Size(44, 44),
+            anchor: new window.google.maps.Point(22, 22),
+          });
+        }
+      };
+      img.src = selectedEmployee.avatarUrl;
+    }
+
     const bounds = new window.google.maps.LatLngBounds();
     pathCoords.forEach(c => bounds.extend(c));
     tripMapInstanceRef.current.fitBounds(bounds);
-  }, [points, summary.stops, view]);
+  }, [points, summary.stops, view, selectedEmployee]);
 
   // Update playback marker position
   useEffect(() => {
     if (!playbackMarkerRef.current || !points[replayIndex]) return;
     const p = points[replayIndex];
     playbackMarkerRef.current.setPosition({ lat: p.latitude, lng: p.longitude });
+    // Smooth panning follows the marker
     tripMapInstanceRef.current?.panTo({ lat: p.latitude, lng: p.longitude });
   }, [replayIndex, points]);
 
   // Replay animation
   useEffect(() => {
     if (!isReplaying || points.length < 2) return;
+    
+    // Smooth stepping for high speeds
+    const intervalMs = Math.max(20, 300 / replaySpeed);
+    const step = replaySpeed > 4 ? Math.floor(replaySpeed / 2) : 1;
+
     const interval = setInterval(() => {
       setReplayIndex(prev => {
         if (prev >= points.length - 1) { setIsReplaying(false); return prev; }
-        return prev + 1;
+        return Math.min(points.length - 1, prev + step);
       });
-    }, Math.max(100, 500 / replaySpeed));
+    }, intervalMs);
     return () => clearInterval(interval);
   }, [isReplaying, points, replaySpeed]);
 
@@ -1413,10 +1447,23 @@ function MapPage() {
 
         {/* Replay mini bar */}
         {isReplaying && (
-          <div className="absolute bottom-[220px] left-1/2 -translate-x-1/2 bg-[#1E3A5F] text-white rounded-full px-4 py-2 flex items-center gap-3 shadow-xl z-30">
-            <button onClick={() => { setReplayIndex(0); setIsReplaying(true); }}><SkipBack className="w-4 h-4" /></button>
-            <button onClick={() => setIsReplaying(false)}><Pause className="w-4 h-4" /></button>
-            <span className="text-xs font-semibold">{Math.round(progress * 100)}%</span>
+          <div className="absolute bottom-[220px] left-1/2 -translate-x-1/2 bg-[#1E3A5F] text-white rounded-full px-4 py-2 flex items-center gap-4 shadow-xl z-30 transition-all">
+            <button onClick={() => { setReplayIndex(0); setIsReplaying(true); }} className="hover:text-blue-200 transition-colors"><SkipBack className="w-4 h-4" /></button>
+            <button onClick={() => setIsReplaying(false)} className="hover:text-blue-200 transition-colors"><Pause className="w-4 h-4" /></button>
+            <div className="w-px h-4 bg-white/20"></div>
+            <div className="flex items-center gap-1 bg-white/10 rounded-full px-2 py-0.5 text-xs font-bold">
+              {[1, 2, 4, 8].map(s => (
+                <button 
+                  key={s} 
+                  onClick={() => setReplaySpeed(s)} 
+                  className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors ${replaySpeed === s ? "bg-white text-[#1E3A5F] shadow-sm" : "hover:bg-white/20"}`}
+                >
+                  {s}x
+                </button>
+              ))}
+            </div>
+            <div className="w-px h-4 bg-white/20"></div>
+            <span className="text-xs font-semibold w-8 text-right tabular-nums">{Math.round(progress * 100)}%</span>
           </div>
         )}
       </div>
