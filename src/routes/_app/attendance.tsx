@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { LogIn, LogOut, Clock, CheckCircle2, XCircle, AlertCircle, Users, Timer, Play, Pause, ChevronLeft, ChevronRight, Download, CalendarDays, LayoutGrid } from "lucide-react";
+import { LogIn, LogOut, Clock, CheckCircle2, XCircle, AlertCircle, Users, Timer, Play, Pause, ChevronLeft, ChevronRight, Download, CalendarDays, LayoutGrid, Building2, MapPin } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -154,7 +154,7 @@ const statusColor: Record<string, string> = {
 };
 
 function AttendancePage() {
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const isElevated = role === "admin" || role === "super_admin" || role === "manager" || role === "hr";
   const [today, setToday] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -185,8 +185,29 @@ function AttendancePage() {
   const [manualCheckOut, setManualCheckOut] = useState("18:00");
   const [manualStatus, setManualStatus] = useState("present");
   
+  useEffect(() => {
+    if (manualStatus === "absent") return;
+    
+    if (manualCheckIn && manualCheckOut) {
+      const inDate = new Date(`2000-01-01T${manualCheckIn}:00`);
+      let outDate = new Date(`2000-01-01T${manualCheckOut}:00`);
+      if (outDate < inDate) {
+        outDate = new Date(`2000-01-02T${manualCheckOut}:00`);
+      }
+      const workedHours = (outDate.getTime() - inDate.getTime()) / 3600000;
+      if (workedHours >= 8 && manualStatus !== "present") {
+        setManualStatus("present");
+      } else if (workedHours >= 4 && workedHours < 8 && manualStatus !== "half_day") {
+        setManualStatus("half_day");
+      } else if (workedHours < 4 && manualStatus !== "absent") {
+        setManualStatus("absent");
+      }
+    }
+  }, [manualCheckIn, manualCheckOut, manualStatus]);
+
   // Export State
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportType, setExportType] = useState<"standard" | "pro">("standard");
   const [exportStartDate, setExportStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().slice(0, 10));
   const [exportSelectedEmployees, setExportSelectedEmployees] = useState<string[]>([]);
@@ -194,7 +215,7 @@ function AttendancePage() {
   // New location tracking state
   const [allOffices, setAllOffices] = useState<any[]>([]);
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
-  const [nearestOffice, setNearestOffice] = useState<any>(null);
+  const [assignedOffice, setAssignedOffice] = useState<any>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   
   // View mode
@@ -215,7 +236,23 @@ function AttendancePage() {
     setMyRegularizations(myRegs ?? []);
 
     const { data: offices } = await supabase.from("office_locations").select("*");
-    setAllOffices(offices ?? []);
+    const loadedOffices = offices ?? [];
+    setAllOffices(loadedOffices);
+
+    // Resolve assigned office
+    if (loadedOffices.length > 0) {
+      let assigned = null;
+      if (profile?.office_id) {
+        assigned = loadedOffices.find((o: any) => o.id === profile.office_id);
+      }
+      if (!assigned) {
+        assigned = loadedOffices.find((o: any) => o.name.toLowerCase().includes("neelgund"));
+      }
+      if (!assigned) {
+        assigned = loadedOffices[0];
+      }
+      setAssignedOffice(assigned);
+    }
 
     if (isElevated) {
       let profileQuery = supabase.from("profiles").select("id, name, email");
@@ -303,7 +340,7 @@ function AttendancePage() {
 
   // Start live location tracking
   useEffect(() => {
-    if (allOffices.length === 0) return;
+    if (!assignedOffice) return;
 
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser");
@@ -315,22 +352,9 @@ function AttendancePage() {
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
         
-        let minDistance = Infinity;
-        let closest = null;
-
-        for (const office of allOffices) {
-          const dist = getDistance(userLat, userLon, office.latitude, office.longitude);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closest = office;
-          }
-        }
-        
-        if (closest) {
-          setCurrentDistance(minDistance);
-          setNearestOffice(closest);
-          setLocationError(null);
-        }
+        const dist = getDistance(userLat, userLon, assignedOffice.latitude, assignedOffice.longitude);
+        setCurrentDistance(dist);
+        setLocationError(null);
       },
       (error) => {
         if (error.code === 1) setLocationError("Location permission denied");
@@ -340,7 +364,7 @@ function AttendancePage() {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [allOffices]);
+  }, [assignedOffice]);
 
   const checkIn = async () => {
     if (!user) return;
@@ -373,22 +397,21 @@ function AttendancePage() {
       if (officeError) throw officeError;
 
       if (offices && offices.length > 0) {
-        let isWithinGeofence = false;
-        let minDistance = Infinity;
-
-        for (const office of offices) {
-          const distance = getDistance(userLat, userLon, office.latitude, office.longitude);
-          if (distance < minDistance) {
-            minDistance = distance;
-          }
-          if (distance <= office.radius_meters) {
-            isWithinGeofence = true;
-            break;
-          }
+        let currentAssigned = null;
+        if (profile?.office_id) {
+          currentAssigned = offices.find((o: any) => o.id === profile.office_id);
+        }
+        if (!currentAssigned) {
+          currentAssigned = offices.find((o: any) => o.name.toLowerCase().includes("neelgund"));
+        }
+        if (!currentAssigned) {
+          currentAssigned = offices[0];
         }
 
-        if (!isWithinGeofence) {
-          toast.error(`Check-in failed: You are not within any office location. Nearest is ${Math.round(minDistance)}m away.`);
+        const distance = getDistance(userLat, userLon, currentAssigned.latitude, currentAssigned.longitude);
+        
+        if (distance > currentAssigned.radius_meters) {
+          toast.error(`Check-in failed: You must be within the ${currentAssigned.name} location. You are ${Math.round(distance)}m away.`);
           setBusy(false);
           return;
         }
@@ -515,8 +538,8 @@ function AttendancePage() {
     if (!manualEmpId || !manualDate) return toast.error("Please select an employee and date");
     setBusy(true);
 
-    const inTime = new Date(`${manualDate}T${manualCheckIn}:00+05:30`).toISOString();
-    const outTime = manualCheckOut ? new Date(`${manualDate}T${manualCheckOut}:00+05:30`).toISOString() : null;
+    const inTime = manualStatus === "absent" ? null : new Date(`${manualDate}T${manualCheckIn}:00+05:30`).toISOString();
+    const outTime = manualStatus === "absent" ? null : (manualCheckOut ? new Date(`${manualDate}T${manualCheckOut}:00+05:30`).toISOString() : null);
 
     const { error } = await supabase.from("attendance").upsert({
       employee_id: manualEmpId,
@@ -559,7 +582,9 @@ function AttendancePage() {
     }
     
     // Generate CSV
-    const headers = ["Date", "Employee Name", "Email", "Status", "Check In", "Check Out", "Duration"];
+    const headers = exportType === "pro" 
+      ? ["Date", "Employee Name", "Email", "Day Status", "Check In", "Check Out", "Duration"]
+      : ["Date", "Employee Name", "Email", "Status", "Check In", "Check Out", "Duration"];
     
     const rows = attendanceData.map((record: any) => {
       const empName = record.profiles?.name || record.profiles?.email || "Unknown";
@@ -567,13 +592,36 @@ function AttendancePage() {
       const inTime = record.check_in_time ? fmt(record.check_in_time) : "—";
       const outTime = record.check_out_time ? fmt(record.check_out_time) : "—";
       const duration = record.check_in_time && record.check_out_time ? calculateDuration(record.check_in_time, record.check_out_time) : "—";
-      const status = record.status ? record.status.replace("_", " ") : "—";
+      
+      let statusStr = "";
+      if (exportType === "pro") {
+        if (record.status === "present") {
+          statusStr = "P";
+        } else if (record.status === "absent") {
+          statusStr = "A";
+        } else if (record.status === "half_day") {
+          if (record.check_in_time) {
+            const inHour = new Date(record.check_in_time).getHours();
+            if (inHour < 12) {
+              statusStr = "0.5 P / 0.5 A";
+            } else {
+              statusStr = "0.5 A / 0.5 P";
+            }
+          } else {
+            statusStr = "0.5 P / 0.5 A";
+          }
+        } else {
+          statusStr = "—";
+        }
+      } else {
+        statusStr = record.status ? record.status.replace("_", " ") : "—";
+      }
       
       return [
         record.date,
         `"${empName}"`,
         `"${empEmail}"`,
-        status,
+        `"${statusStr}"`,
         `"${inTime}"`,
         `"${outTime}"`,
         `"${duration}"`
@@ -585,7 +633,7 @@ function AttendancePage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Attendance_Export_${exportStartDate}_to_${exportEndDate}.csv`);
+    link.setAttribute("download", `Attendance_${exportType === "pro" ? "Pro_" : ""}Export_${exportStartDate}_to_${exportEndDate}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -637,26 +685,30 @@ function AttendancePage() {
       ) : (
         <>
           {/* Location Status Bar */}
-      {allOffices.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
-          <div className={`p-3 rounded-xl border flex items-center justify-between shadow-sm transition-colors ${locationError ? 'bg-red-50 border-red-200' : (currentDistance !== null && nearestOffice && currentDistance <= nearestOffice.radius_meters) ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-            <div className="flex items-center gap-2">
-              {locationError ? <AlertCircle className="w-5 h-5 text-red-500" /> : (currentDistance !== null && nearestOffice && currentDistance <= nearestOffice.radius_meters) ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <AlertCircle className="w-5 h-5 text-amber-500 animate-pulse" />}
-              <div>
-                <div className="text-sm font-semibold text-gray-900">Location Status</div>
-                <div className={`text-xs ${locationError ? 'text-red-700' : 'text-gray-600'}`}>
-                  {locationError ? locationError : currentDistance !== null ? `Nearest Office: ${nearestOffice.name} (${Math.round(currentDistance)}m away)` : "Locating..."}
+          {assignedOffice ? (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
+              <div className={`p-3 rounded-xl border flex items-center justify-between shadow-sm transition-colors ${locationError ? 'bg-red-50 border-red-200' : (currentDistance !== null && currentDistance <= assignedOffice.radius_meters) ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                <div className="flex items-center gap-2">
+                  {locationError ? <AlertCircle className="w-5 h-5 text-red-500" /> : (currentDistance !== null && currentDistance <= assignedOffice.radius_meters) ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <AlertCircle className="w-5 h-5 text-amber-500 animate-pulse" />}
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">Assigned Office: {assignedOffice.name}</div>
+                    <div className={`text-xs ${locationError ? 'text-red-700' : 'text-gray-600'}`}>
+                      {locationError ? locationError : currentDistance !== null ? `${Math.round(currentDistance)}m away (Radius: ${assignedOffice.radius_meters}m)` : "Locating..."}
+                    </div>
+                  </div>
                 </div>
+                {currentDistance !== null && !locationError && (
+                  <div className={`text-xs px-2 py-1 rounded-md font-semibold ${currentDistance <= assignedOffice.radius_meters ? "bg-green-100 text-green-800 border border-green-300" : "bg-amber-100 text-amber-800 border border-amber-300"}`}>
+                    {currentDistance <= assignedOffice.radius_meters ? "In Range" : "Out of Range"}
+                  </div>
+                )}
               </div>
+            </motion.div>
+          ) : (
+            <div className="mb-4 text-sm text-gray-500 flex items-center gap-2 bg-gray-50 p-3 rounded-xl border border-gray-100">
+              <MapPin className="w-4 h-4" /> No office locations defined. Geofencing disabled.
             </div>
-            {currentDistance !== null && !locationError && nearestOffice && (
-              <Badge variant="outline" className={currentDistance <= nearestOffice.radius_meters ? "bg-green-100 text-green-800 border-green-300" : "bg-amber-100 text-amber-800 border-amber-300"}>
-                {currentDistance <= nearestOffice.radius_meters ? "In Range" : "Out of Range"}
-              </Badge>
-            )}
-          </div>
-        </motion.div>
-      )}
+          )}
 
       {/* Today's card with timer */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
@@ -801,8 +853,12 @@ function AttendancePage() {
                 </button>
               </div>
 
-              <Button onClick={() => { setExportSelectedEmployees(allowedProfiles.map(p => p.id)); setShowExportDialog(true); }} size="sm" variant="outline" className="rounded-xl shadow-sm text-xs h-8 px-3 whitespace-nowrap bg-white text-[#154D8C] border-[#154D8C] hover:bg-slate-50">
+              <Button onClick={() => { setExportType("standard"); setExportSelectedEmployees(allowedProfiles.map(p => p.id)); setShowExportDialog(true); }} size="sm" variant="outline" className="rounded-xl shadow-sm text-xs h-8 px-3 whitespace-nowrap bg-white text-[#154D8C] border-[#154D8C] hover:bg-slate-50">
                 <Download className="w-4 h-4 mr-1.5" /> Export
+              </Button>
+
+              <Button onClick={() => { setExportType("pro"); setExportSelectedEmployees(allowedProfiles.map(p => p.id)); setShowExportDialog(true); }} size="sm" className="rounded-xl shadow-sm text-xs h-8 px-3 whitespace-nowrap bg-amber-500 text-white hover:bg-amber-600 border-none">
+                <Download className="w-4 h-4 mr-1.5" /> Export Pro
               </Button>
 
               <Button onClick={() => setShowManualDialog(true)} size="sm" className="bg-[#154D8C] text-white hover:bg-[#154D8C]/90 rounded-xl shadow-sm text-xs h-8 px-3 whitespace-nowrap">
@@ -1161,16 +1217,18 @@ function AttendancePage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Check In Time</label>
-                <TimePicker12 value={manualCheckIn} onChange={setManualCheckIn} />
+            {manualStatus !== "absent" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Check In Time</label>
+                  <TimePicker12 value={manualCheckIn} onChange={setManualCheckIn} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Check Out Time</label>
+                  <TimePicker12 value={manualCheckOut} onChange={setManualCheckOut} />
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Check Out Time</label>
-                <TimePicker12 value={manualCheckOut} onChange={setManualCheckOut} />
-              </div>
-            </div>
+            )}
 
             <div>
               <label className="text-xs font-semibold text-gray-700 mb-1.5 block">Status</label>

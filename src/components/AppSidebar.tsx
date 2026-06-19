@@ -19,6 +19,7 @@ const items: Item[] = [
   { to: "/hr-management", label: "HR Management", icon: Users, roles: ["hr", "admin", "super_admin", "manager"] },
   { to: "/documents", label: "Documents", icon: FileText },
   { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["hr", "admin", "super_admin", "manager"] },
+  { to: "/offices", label: "Manage Offices", icon: Building2, roles: ["hr", "admin", "super_admin", "manager"] },
   { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/profile", label: "Profile", icon: UserCircle },
   { to: "/settings", label: "Settings", icon: Settings, roles: ["admin", "super_admin"] },

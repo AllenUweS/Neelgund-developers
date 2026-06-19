@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppRegularizationsRouteImport } from './routes/_app/regularizations'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
+import { Route as AppOfficesRouteImport } from './routes/_app/offices'
 import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
 import { Route as AppMapRouteImport } from './routes/_app/map'
 import { Route as AppLeadsRouteImport } from './routes/_app/leads'
@@ -52,6 +53,11 @@ const AppRegularizationsRoute = AppRegularizationsRouteImport.update({
 const AppProfileRoute = AppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOfficesRoute = AppOfficesRouteImport.update({
+  id: '/offices',
+  path: '/offices',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNotificationsRoute = AppNotificationsRouteImport.update({
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AppLeadsRoute
   '/map': typeof AppMapRoute
   '/notifications': typeof AppNotificationsRoute
+  '/offices': typeof AppOfficesRoute
   '/profile': typeof AppProfileRoute
   '/regularizations': typeof AppRegularizationsRoute
   '/settings': typeof AppSettingsRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/leads': typeof AppLeadsRoute
   '/map': typeof AppMapRoute
   '/notifications': typeof AppNotificationsRoute
+  '/offices': typeof AppOfficesRoute
   '/profile': typeof AppProfileRoute
   '/regularizations': typeof AppRegularizationsRoute
   '/settings': typeof AppSettingsRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/_app/leads': typeof AppLeadsRoute
   '/_app/map': typeof AppMapRoute
   '/_app/notifications': typeof AppNotificationsRoute
+  '/_app/offices': typeof AppOfficesRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/regularizations': typeof AppRegularizationsRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/map'
     | '/notifications'
+    | '/offices'
     | '/profile'
     | '/regularizations'
     | '/settings'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/map'
     | '/notifications'
+    | '/offices'
     | '/profile'
     | '/regularizations'
     | '/settings'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/_app/leads'
     | '/_app/map'
     | '/_app/notifications'
+    | '/_app/offices'
     | '/_app/profile'
     | '/_app/regularizations'
     | '/_app/settings'
@@ -250,6 +262,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/offices': {
+      id: '/_app/offices'
+      path: '/offices'
+      fullPath: '/offices'
+      preLoaderRoute: typeof AppOfficesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/notifications': {
@@ -328,6 +347,7 @@ interface AppRouteChildren {
   AppLeadsRoute: typeof AppLeadsRoute
   AppMapRoute: typeof AppMapRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
+  AppOfficesRoute: typeof AppOfficesRoute
   AppProfileRoute: typeof AppProfileRoute
   AppRegularizationsRoute: typeof AppRegularizationsRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -343,6 +363,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppLeadsRoute: AppLeadsRoute,
   AppMapRoute: AppMapRoute,
   AppNotificationsRoute: AppNotificationsRoute,
+  AppOfficesRoute: AppOfficesRoute,
   AppProfileRoute: AppProfileRoute,
   AppRegularizationsRoute: AppRegularizationsRoute,
   AppSettingsRoute: AppSettingsRoute,
