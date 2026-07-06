@@ -19,7 +19,4 @@ export default defineConfig({
     }),
     viteReact(),
   ],
-  ssr: {
-    noExternal: true,  // bundle ALL dependencies into SSR output
-  },
 });

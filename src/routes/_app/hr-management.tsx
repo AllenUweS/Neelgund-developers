@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Search, UserPlus, Phone, Briefcase, Building2, Camera, Loader2, Trash2 } from "lucide-react";
@@ -202,6 +203,7 @@ function EditUserDialog({ user, managers, open, onClose, onSaved, onDelete }: Ed
         manager_id: user.manager_id ?? "",
         profile_notes: user.profile_notes ?? "",
         joining_date: user.joining_date ?? "",
+        is_active: user.is_active ?? true,
       });
       setPhotoUrl(resolvePhotoUrl(user));
     }
@@ -225,6 +227,7 @@ function EditUserDialog({ user, managers, open, onClose, onSaved, onDelete }: Ed
         manager_id: form.manager_id || null,
         joining_date: form.joining_date || null,
         profile_notes: form.profile_notes?.trim() || null,
+        is_active: form.is_active,
         updated_at: new Date().toISOString(),
       };
 
@@ -257,7 +260,12 @@ function EditUserDialog({ user, managers, open, onClose, onSaved, onDelete }: Ed
       onSaved({ ...updatedProfile, profile_photo_url: photoUrl });
       onClose();
     } catch (err: any) {
-      toast.error(err?.message ?? "Failed to update user");
+      const msg = err?.message ?? "Failed to update user";
+      if (msg.includes("schema cache")) {
+        toast.error("Schema cache error! Please run `NOTIFY pgrst, 'reload schema';` in your Supabase SQL Editor.", { duration: 8000 });
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -411,6 +419,21 @@ function EditUserDialog({ user, managers, open, onClose, onSaved, onDelete }: Ed
                 onBlur={e => e.target.style.borderColor = `${PRIMARY_COLOR}30`} 
               />
             </div>
+            
+            <div className="col-span-2 p-3 bg-slate-50 rounded-xl flex items-center justify-between mt-2">
+              <div>
+                <div className="text-sm font-medium text-slate-900">Account Status</div>
+                <div className="text-xs text-muted-foreground">
+                  {form.is_active ? "Employee can log in and access the system." : "Employee is deactivated and cannot log in."}
+                </div>
+              </div>
+              <Switch 
+                checked={form.is_active} 
+                onCheckedChange={v => setForm({ ...form, is_active: v })} 
+                disabled={busy}
+                style={form.is_active ? { backgroundColor: PRIMARY_COLOR } : undefined}
+              />
+            </div>
           </div>
         </div>
 
@@ -471,6 +494,33 @@ function HRManagementPage() {
 
   const updatePhotoInList = (userId: string, newUrl: string) =>
     setList(prev => prev.map(e => e.id === userId ? { ...e, profile_photo_url: newUrl } : e));
+
+  const handleToggleActiveList = async (e: React.MouseEvent, user: any) => {
+    e.stopPropagation();
+    if (!canEdit) return;
+    setBusy(true);
+    try {
+      const newStatus = user.is_active === false ? true : false;
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_active: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+      
+      if (error) throw error;
+      
+      updateUserInList({ id: user.id, is_active: newStatus });
+      toast.success(`User marked as ${newStatus ? 'active' : 'inactive'}`);
+    } catch (err: any) {
+      const msg = err.message ?? "Failed to update status";
+      if (msg.includes("schema cache")) {
+        toast.error("Schema cache error! Please run `NOTIFY pgrst, 'reload schema';` in your Supabase SQL Editor.", { duration: 8000 });
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const roleRank: Record<string, number> = {
     super_admin: 0,
@@ -704,7 +754,26 @@ function HRManagementPage() {
                             >
                               {e.role?.replace("_", " ")}
                             </span>
+                            {!canEdit && e.is_active === false && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                                Inactive
+                              </span>
+                            )}
                           </div>
+                          {canEdit && (
+                            <div className="mt-1 flex items-center gap-2" onClick={ev => ev.stopPropagation()}>
+                              <Switch 
+                                checked={e.is_active !== false}
+                                onCheckedChange={() => handleToggleActiveList({ stopPropagation: () => {} } as any, e)}
+                                disabled={busy}
+                                className="scale-75 origin-left"
+                                style={e.is_active !== false ? { backgroundColor: PRIMARY_COLOR } : undefined}
+                              />
+                              <span className="text-[10px] font-medium text-slate-500">
+                                {e.is_active !== false ? "Active" : "Inactive"}
+                              </span>
+                            </div>
+                          )}
                           <div className="text-xs text-muted-foreground truncate mt-0.5">{e.email}</div>
                           {e.designation && <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Briefcase className="h-3 w-3" style={{ color: PRIMARY_COLOR }} />{e.designation}</div>}
                           {e.department && <div className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" style={{ color: PRIMARY_COLOR }} />{e.department}</div>}

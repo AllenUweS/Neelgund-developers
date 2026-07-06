@@ -30,6 +30,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("id", userId)
       .maybeSingle();
     if (data) {
+      if (data.is_active === false) {
+        await supabase.auth.signOut();
+        setProfile(null);
+        setRole(null);
+        setUser(null);
+        setSession(null);
+        return;
+      }
       setProfile(data);
       setRole(data.role as AppRole);
     }
@@ -58,8 +66,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn: AuthState["signIn"] = async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? { error: error.message } : {};
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+
+    if (data?.user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_active")
+        .eq("id", data.user.id)
+        .maybeSingle();
+
+      if (profile && profile.is_active === false) {
+        await supabase.auth.signOut();
+        return { error: "Your account is currently inactive. Please contact the administrator." };
+      }
+    }
+
+    return {};
   };
 
   const signOut = async () => {

@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_app/offices")({
 function OfficesPage() {
   const [offices, setOffices] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
-  
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editLat, setEditLat] = useState("");
@@ -42,7 +42,7 @@ function OfficesPage() {
       toast.error("Failed to load offices");
     } else {
       setOffices(data || []);
-      
+
       // Auto-assign any unassigned profiles to the Neelgund office (or the first office)
       const defaultOffice = data?.find(o => o.name.toLowerCase().includes("neelgund")) || data?.[0];
       if (defaultOffice) {
@@ -65,7 +65,7 @@ function OfficesPage() {
       radius_meters: parseInt(newRadius, 10),
     });
     setBusy(false);
-    
+
     if (error) {
       toast.error(error.message);
     } else {
@@ -89,7 +89,7 @@ function OfficesPage() {
       radius_meters: parseInt(editRadius, 10),
     }).eq("id", id);
     setBusy(false);
-    
+
     if (error) {
       toast.error(error.message);
     } else {
@@ -140,11 +140,11 @@ function OfficesPage() {
   const toggleAssignment = async (profile: any) => {
     const isAssigned = assignedProfileIds.has(profile.id);
     const newOfficeId = isAssigned ? null : assigningOffice.id;
-    
+
     setBusy(true);
     const { error } = await supabase.from("profiles").update({ office_id: newOfficeId }).eq("id", profile.id);
     setBusy(false);
-    
+
     if (error) {
       toast.error(error.message);
     } else {
@@ -152,10 +152,10 @@ function OfficesPage() {
       if (isAssigned) newAssigned.delete(profile.id);
       else newAssigned.add(profile.id);
       setAssignedProfileIds(newAssigned);
-      
+
       // Update local profiles array
       setProfiles(profiles.map(p => p.id === profile.id ? { ...p, office_id: newOfficeId } : p));
-      
+
       toast.success(isAssigned ? `${profile.name} removed from office` : `${profile.name} assigned to office`);
     }
   };
@@ -164,7 +164,7 @@ function OfficesPage() {
     <div className="pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <PageHeader title="Office Locations" subtitle="Manage geofencing areas for attendance tracking" />
-        
+
         {!isAdding && !editingId && (
           <Button onClick={() => setIsAdding(true)} className="bg-[#154D8C] text-white hover:bg-[#154D8C]/90 rounded-xl shadow-md h-10 px-5 transition-transform hover:scale-105 active:scale-95 shrink-0">
             <Plus className="w-4 h-4 mr-2" /> Add New Office
@@ -174,7 +174,7 @@ function OfficesPage() {
 
       <AnimatePresence mode="wait">
         {isAdding && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, height: 0, y: -20 }}
             animate={{ opacity: 1, height: 'auto', y: 0 }}
             exit={{ opacity: 0, height: 0, y: -20 }}
@@ -194,55 +194,55 @@ function OfficesPage() {
                     <p className="text-xs text-gray-500">Define a new geofence for employee check-ins</p>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Location Name</label>
-                    <input 
-                      type="text" 
-                      value={newName} 
-                      onChange={e => setNewName(e.target.value)} 
-                      placeholder="e.g. Headquarters" 
-                      className="w-full p-3 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-[#154D8C] focus:ring-2 focus:ring-[#154D8C]/20 transition-all shadow-sm" 
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={e => setNewName(e.target.value)}
+                      placeholder="e.g. Headquarters"
+                      className="w-full p-3 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-[#154D8C] focus:ring-2 focus:ring-[#154D8C]/20 transition-all shadow-sm"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Geofence Radius</label>
                     <div className="relative">
-                      <input 
-                        type="number" 
-                        value={newRadius} 
-                        onChange={e => setNewRadius(e.target.value)} 
-                        placeholder="100" 
-                        className="w-full p-3 pr-16 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-[#154D8C] focus:ring-2 focus:ring-[#154D8C]/20 transition-all shadow-sm" 
+                      <input
+                        type="number"
+                        value={newRadius}
+                        onChange={e => setNewRadius(e.target.value)}
+                        placeholder="100"
+                        className="w-full p-3 pr-16 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-[#154D8C] focus:ring-2 focus:ring-[#154D8C]/20 transition-all shadow-sm"
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">meters</div>
                     </div>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Latitude</label>
-                    <input 
-                      type="number" 
-                      step="any" 
-                      value={newLat} 
-                      onChange={e => setNewLat(e.target.value)} 
-                      placeholder="12.9716" 
-                      className="w-full p-3 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-[#154D8C] focus:ring-2 focus:ring-[#154D8C]/20 transition-all shadow-sm font-mono" 
+                    <input
+                      type="number"
+                      step="any"
+                      value={newLat}
+                      onChange={e => setNewLat(e.target.value)}
+                      placeholder="12.9716"
+                      className="w-full p-3 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-[#154D8C] focus:ring-2 focus:ring-[#154D8C]/20 transition-all shadow-sm font-mono"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Longitude</label>
-                    <input 
-                      type="number" 
-                      step="any" 
-                      value={newLon} 
-                      onChange={e => setNewLon(e.target.value)} 
-                      placeholder="77.5946" 
-                      className="w-full p-3 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-[#154D8C] focus:ring-2 focus:ring-[#154D8C]/20 transition-all shadow-sm font-mono" 
+                    <input
+                      type="number"
+                      step="any"
+                      value={newLon}
+                      onChange={e => setNewLon(e.target.value)}
+                      placeholder="77.5946"
+                      className="w-full p-3 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-[#154D8C] focus:ring-2 focus:ring-[#154D8C]/20 transition-all shadow-sm font-mono"
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3 justify-end pt-2 border-t border-blue-100/50">
                   <Button variant="ghost" onClick={() => setIsAdding(false)} className="rounded-xl px-5 hover:bg-gray-100/80">
                     Cancel
@@ -259,7 +259,7 @@ function OfficesPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {offices.map(office => (
-          <motion.div 
+          <motion.div
             key={office.id}
             layout
             initial={{ opacity: 0, scale: 0.95 }}
@@ -301,7 +301,7 @@ function OfficesPage() {
                 <>
                   <div className="h-2 w-full bg-gradient-to-r from-[#154D8C] to-blue-400"></div>
                   <div className="p-6 flex-1 flex flex-col relative z-10">
-                    
+
                     <div className="absolute top-4 right-4 flex opacity-0 group-hover:opacity-100 transition-opacity gap-1 z-20">
                       <button onClick={() => openAssignDialog(office)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors shadow-sm" title="Assign Employees">
                         <Users className="w-4 h-4" />
@@ -344,7 +344,7 @@ function OfficesPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Visual radius representation */}
                     <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-blue-50 rounded-full border border-blue-100/50 flex items-center justify-center opacity-40 pointer-events-none group-hover:scale-110 transition-transform duration-500">
                       <div className="w-16 h-16 bg-blue-100 rounded-full border border-blue-200/50"></div>
@@ -379,11 +379,11 @@ function OfficesPage() {
               Assign Employees to {assigningOffice?.name}
             </DialogTitle>
             <DialogDescription className="text-blue-100 mt-1">
-              Select employees who should be restricted to check in and out from this location. 
+              Select employees who should be restricted to check in and out from this location.
               By default, unassigned employees fall back to the Neelgund office.
             </DialogDescription>
           </div>
-          
+
           <div className="p-6 overflow-y-auto flex-1 bg-gray-50">
             {loadingProfiles ? (
               <div className="flex justify-center items-center py-10">
@@ -413,7 +413,7 @@ function OfficesPage() {
                               <p className="text-xs text-gray-500 truncate">{profile.email}</p>
                             </div>
                           </div>
-                          
+
                           <Button size="sm" onClick={() => toggleAssignment(profile)} disabled={busy} className="shrink-0 rounded-lg h-8 px-3 ml-2 text-xs font-semibold bg-[#154D8C] hover:bg-red-500 hover:text-white transition-colors group">
                             <span className="group-hover:hidden flex items-center"><Check className="w-3.5 h-3.5 mr-1" /> Assigned</span>
                             <span className="hidden group-hover:flex items-center"><X className="w-3.5 h-3.5 mr-1" /> Remove</span>
@@ -446,7 +446,7 @@ function OfficesPage() {
                               )}
                             </div>
                           </div>
-                          
+
                           <Button size="sm" variant="outline" onClick={() => toggleAssignment(profile)} disabled={busy} className="shrink-0 rounded-lg h-8 px-3 ml-2 text-xs font-semibold bg-white text-[#154D8C] hover:bg-blue-50 border-blue-200 hover:border-[#154D8C]">
                             <span className="flex items-center"><Plus className="w-3.5 h-3.5 mr-1" /> Assign</span>
                           </Button>
@@ -458,7 +458,7 @@ function OfficesPage() {
               </div>
             )}
           </div>
-          
+
           <div className="p-4 bg-white border-t flex justify-end shrink-0">
             <Button onClick={() => setAssigningOffice(null)} className="rounded-xl px-6">Done</Button>
           </div>

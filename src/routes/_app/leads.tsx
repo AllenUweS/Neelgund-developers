@@ -8,7 +8,7 @@ import {
   ArrowLeft, Trophy, Users, Layers,
   TrendingUp, CheckCircle2, XCircle, Clock,
   FileSpreadsheet, Filter, X, Flame, Calendar,
-  Mail, Paperclip, MapPin, MapPinned, IndianRupee, Share2, FileText
+  Mail, Paperclip, MapPin, MapPinned, IndianRupee, Share2, FileText, ArrowRightLeft
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -415,25 +415,405 @@ function AddLeadDialog({
   );
 }
 
+// ─── TransferLeadsDialog ──────────────────────────────────────────────────────
+
+function TransferLeadsDialog({
+  isElevated,
+  employees,
+  leads,
+  onTransferred,
+}: {
+  isElevated: boolean;
+  employees: any[];
+  leads: any[];
+  onTransferred: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"single" | "date" | "status">("single");
+  const [fromEmp, setFromEmp] = useState("");
+  const [toEmp, setToEmp] = useState("");
+
+  // Single mode
+  const [selectedLeadId, setSelectedLeadId] = useState("");
+
+  // Date mode
+  const [targetDate, setTargetDate] = useState("");
+
+  // Status/Priority mode
+  const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+
+  const [isTransferring, setIsTransferring] = useState(false);
+
+  // Derived available leads for "From" employee
+  const fromEmpLeads = useMemo(() => leads.filter((l) => l.employee_id === fromEmp), [leads, fromEmp]);
+
+  // Derived matching leads based on mode
+  const matchingLeads = useMemo(() => {
+    if (!fromEmp) return [];
+    if (mode === "single") {
+      return fromEmpLeads.filter((l) => l.id.toString() === selectedLeadId);
+    } else if (mode === "date") {
+      if (!targetDate) return [];
+      return fromEmpLeads.filter((l) => {
+        if (!l.created_at) return false;
+        const d = new Date(l.created_at);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}` === targetDate;
+      });
+    } else if (mode === "status") {
+      let filtered = fromEmpLeads;
+      if (statusFilter !== "all") filtered = filtered.filter((l) => l.status === statusFilter);
+      if (priorityFilter !== "all") filtered = filtered.filter((l) => l.priority === priorityFilter);
+      return filtered;
+    }
+    return [];
+  }, [mode, fromEmp, fromEmpLeads, selectedLeadId, targetDate, statusFilter, priorityFilter]);
+
+  const handleTransfer = async () => {
+    if (!fromEmp || !toEmp) return toast.error("Please select both From and To employees");
+    if (fromEmp === toEmp) return toast.error("Cannot transfer to the same employee");
+    if (matchingLeads.length === 0) return toast.error("No leads match the selected criteria");
+
+    setIsTransferring(true);
+
+    // Perform bulk update
+    const leadIds = matchingLeads.map((l) => l.id);
+    const { error } = await supabase
+      .from("leads")
+      .update({ employee_id: toEmp, updated_at: new Date().toISOString() })
+      .in("id", leadIds);
+
+    setIsTransferring(false);
+
+    if (error) return toast.error(error.message);
+
+    toast.success(`Successfully transferred ${leadIds.length} lead(s)`);
+    setOpen(false);
+
+    // Reset forms
+    setFromEmp("");
+    setToEmp("");
+    setSelectedLeadId("");
+    setTargetDate("");
+    setStatusFilter("all");
+    setPriorityFilter("all");
+
+    onTransferred();
+  };
+
+  if (!isElevated) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="rounded-xl gap-2 h-9 text-sm text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200">
+          <ArrowRightLeft className="h-3.5 w-3.5" />
+          Transfer Leads
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="rounded-2xl max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-indigo-700">
+            <ArrowRightLeft className="h-4 w-4" />
+            Transfer Leads
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5 py-2">
+          {/* Transfer Mode Segmented Control */}
+          <div className="flex p-1 bg-slate-100 rounded-xl">
+            {(["single", "date", "status"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => {
+                  setMode(m);
+                  setSelectedLeadId("");
+                }}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg capitalize transition-all ${
+                  mode === m
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                }`}
+              >
+                {m === "single" ? "Single Lead" : m === "date" ? "By Date" : "By Status"}
+              </button>
+            ))}
+          </div>
+
+          {/* From & To Employees */}
+          <div className="grid grid-cols-2 gap-4 items-end">
+            <div>
+              <Label className="text-xs mb-1.5 block">Transfer From</Label>
+              <Select value={fromEmp} onValueChange={(v) => { setFromEmp(v); setSelectedLeadId(""); }}>
+                <SelectTrigger className="rounded-xl h-10">
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.name || e.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs mb-1.5 block">Transfer To</Label>
+              <Select value={toEmp} onValueChange={setToEmp}>
+                <SelectTrigger className="rounded-xl h-10">
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={e.id} disabled={e.id === fromEmp}>
+                      {e.name || e.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-100 my-2" />
+
+          {/* Mode specific fields */}
+          <div className="min-h-[100px]">
+            {mode === "single" && (
+              <div className="space-y-2">
+                <Label className="text-xs block">Select Lead</Label>
+                <Select value={selectedLeadId} onValueChange={setSelectedLeadId} disabled={!fromEmp}>
+                  <SelectTrigger className="rounded-xl h-10">
+                    <SelectValue placeholder={fromEmp ? "Select a lead..." : "Select 'From' employee first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fromEmpLeads.length === 0 ? (
+                      <div className="p-2 text-xs text-muted-foreground text-center">No leads available</div>
+                    ) : (
+                      fromEmpLeads.map((l) => (
+                        <SelectItem key={l.id} value={l.id.toString()}>
+                          {l.name} {l.phone ? `(${l.phone})` : ""} - {STATUS_LABEL[l.status as LeadStatus] ?? l.status}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {mode === "date" && (
+              <div className="space-y-2">
+                <Label className="text-xs block">Lead Creation Date</Label>
+                <Input
+                  type="date"
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  className="rounded-xl h-10"
+                  disabled={!fromEmp}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  All leads created on this date by the selected employee will be transferred.
+                </p>
+              </div>
+            )}
+
+            {mode === "status" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs mb-1.5 block">Status</Label>
+                  <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} disabled={!fromEmp}>
+                    <SelectTrigger className="rounded-xl h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Any Status</SelectItem>
+                      {STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {STATUS_LABEL[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs mb-1.5 block">Priority</Label>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter} disabled={!fromEmp}>
+                    <SelectTrigger className="rounded-xl h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Any Priority</SelectItem>
+                      {PRIORITIES.map((p) => (
+                        <SelectItem key={p} value={p} className="capitalize">
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Transfer Summary Preview */}
+          {fromEmp && (
+            <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+              <div className="text-sm font-medium text-indigo-900 flex justify-between items-center">
+                <span>Transfer Summary</span>
+                <Badge variant="outline" className="bg-indigo-100 text-indigo-700 border-indigo-200">
+                  {matchingLeads.length} Lead{matchingLeads.length !== 1 ? "s" : ""} Selected
+                </Badge>
+              </div>
+              {matchingLeads.length > 0 && matchingLeads.length <= 3 && (
+                <ul className="mt-2 text-xs text-indigo-700 space-y-1">
+                  {matchingLeads.map((l) => (
+                    <li key={l.id} className="truncate">
+                      • {l.name} {l.phone ? `(${l.phone})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {matchingLeads.length > 3 && (
+                <div className="mt-2 text-xs text-indigo-700">
+                  • {matchingLeads[0].name} <br />
+                  • {matchingLeads[1].name} <br />
+                  • and {matchingLeads.length - 2} more...
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2 mt-2">
+          <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleTransfer}
+            className="rounded-xl gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg transition-all"
+            disabled={isTransferring || !fromEmp || !toEmp || matchingLeads.length === 0}
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5" />
+            {isTransferring
+              ? "Transferring..."
+              : `Transfer ${matchingLeads.length > 0 ? matchingLeads.length : ""} Lead${
+                  matchingLeads.length !== 1 ? "s" : ""
+                }`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── QuickTransferDialog ──────────────────────────────────────────────────────
+
+function QuickTransferDialog({
+  lead,
+  employees,
+  onClose,
+  onTransferred,
+}: {
+  lead: any | null;
+  employees: any[];
+  onClose: () => void;
+  onTransferred: () => void;
+}) {
+  const [toEmp, setToEmp] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false);
+
+  useEffect(() => {
+    if (lead) setToEmp("");
+  }, [lead]);
+
+  const handleTransfer = async () => {
+    if (!toEmp) return toast.error("Select an employee");
+    setIsTransferring(true);
+    const { error } = await supabase
+      .from("leads")
+      .update({ employee_id: toEmp, updated_at: new Date().toISOString() })
+      .eq("id", lead.id);
+    setIsTransferring(false);
+    if (error) return toast.error(error.message);
+    toast.success("Lead transferred successfully");
+    onTransferred();
+    onClose();
+  };
+
+  return (
+    <Dialog open={!!lead} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="rounded-2xl max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ArrowRightLeft className="h-4 w-4 text-primary" />
+            Transfer Lead
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div>
+            <Label className="text-xs mb-1.5 block">Transferring:</Label>
+            <div className="font-semibold text-sm">{lead?.name}</div>
+          </div>
+          <div>
+            <Label className="text-xs mb-1.5 block">Transfer To Employee</Label>
+            <Select value={toEmp} onValueChange={setToEmp}>
+              <SelectTrigger className="rounded-xl h-10">
+                <SelectValue placeholder="Select employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((e) => (
+                  <SelectItem key={e.id} value={e.id} disabled={e.id === lead?.employee_id}>
+                    {e.name || e.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} className="rounded-xl">
+            Cancel
+          </Button>
+          <Button onClick={handleTransfer} disabled={!toEmp || isTransferring} className="rounded-xl gap-2">
+            <ArrowRightLeft className="h-3.5 w-3.5" />
+            {isTransferring ? "Transferring..." : "Transfer Now"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── LeadCard (kanban) ────────────────────────────────────────────────────────
 
 function LeadCard({
-  l, profileMap, isElevated, onStatusChange, onClick,
+  l, profileMap, isElevated, onStatusChange, onClick, onTransferClick
 }: {
   l: any;
   profileMap: Record<string, any>;
   isElevated: boolean;
   onStatusChange: (id: number, s: LeadStatus) => void;
   onClick: () => void;
+  onTransferClick?: (lead: any) => void;
 }) {
   const status = l.status as LeadStatus;
   return (
     <Card className="p-3 rounded-xl bg-card hover:shadow-md transition-all cursor-pointer border border-border/50"
       onClick={onClick}>
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <div className="font-semibold text-sm leading-tight">{l.name}</div>
+        <div className="flex flex-col">
+          <div className="font-semibold text-sm leading-tight">{l.name}</div>
+          {l.created_at && (
+            <div className="text-[9px] text-muted-foreground font-medium mt-0.5 flex items-center gap-1">
+              <Clock className="h-2.5 w-2.5" />
+              {new Date(l.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+            </div>
+          )}
+        </div>
         {l.priority && (
-          <span className={`text-[10px] font-bold uppercase ${PRIORITY_COLOR[l.priority] ?? "text-muted-foreground"}`}>
+          <span className={`text-[10px] font-bold uppercase ${PRIORITY_COLOR[l.priority] ?? "text-muted-foreground"} whitespace-nowrap`}>
             {l.priority === "hot" && <Flame className="h-2.5 w-2.5 inline mr-0.5" />}
             {l.priority}
           </span>
@@ -471,6 +851,12 @@ function LeadCard({
               → {STATUS_LABEL[next]}
             </button>
           ))}
+          {onTransferClick && (
+            <button onClick={() => onTransferClick(l)}
+              className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-100 flex items-center gap-1">
+              <ArrowRightLeft className="h-3 w-3" /> Transfer
+            </button>
+          )}
         </div>
       )}
     </Card>
@@ -480,12 +866,13 @@ function LeadCard({
 // ─── LeadDetailDialog ─────────────────────────────────────────────────────────
 
 function LeadDetailDialog({
-  lead, profileMap, isElevated, onClose,
+  lead, profileMap, isElevated, onClose, onTransferClick
 }: {
   lead: any | null;
   profileMap: Record<string, any>;
   isElevated: boolean;
   onClose: () => void;
+  onTransferClick?: (lead: any) => void;
 }) {
   const [activeTab, setActiveTab] = useState("info");
 
@@ -515,7 +902,7 @@ function LeadDetailDialog({
           </div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">{lead.name}</h2>
           
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 flex-wrap justify-center mb-6">
             <span className={`inline-flex items-center text-[11px] px-3 py-1 rounded-full font-bold uppercase tracking-wider border ${STATUS_COLOR[status] ?? "bg-slate-100 text-slate-700"}`}>
               {STATUS_LABEL[status] ?? status}
             </span>
@@ -523,6 +910,12 @@ function LeadDetailDialog({
               <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${PRIORITY_COLOR[lead.priority] ? PRIORITY_COLOR[lead.priority].replace('text-', 'bg-') : 'bg-slate-400'}`}></span>
               {lead.priority || "Normal"}
             </span>
+            {lead.created_at && (
+              <span className="inline-flex items-center text-[11px] px-3 py-1 rounded-full font-bold tracking-wider bg-slate-50 text-slate-500 border border-slate-200 shadow-sm">
+                <Clock className="h-3 w-3 mr-1.5 text-slate-400" />
+                {new Date(lead.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            )}
           </div>
 
           <div className="flex gap-4 justify-center w-full px-4">
@@ -538,6 +931,11 @@ function LeadDetailDialog({
             <Button variant="outline" size="icon" className="rounded-full w-12 h-12 border-slate-200 bg-white text-slate-600 hover:bg-slate-50 shadow-sm transition-all hover:-translate-y-1" onClick={() => setActiveTab("docs")}>
               <Paperclip className="h-5 w-5" />
             </Button>
+            {isElevated && onTransferClick && (
+              <Button variant="outline" size="icon" className="rounded-full w-12 h-12 border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 shadow-sm transition-all hover:-translate-y-1" onClick={() => { onTransferClick(lead); onClose(); }}>
+                <ArrowRightLeft className="h-5 w-5" />
+              </Button>
+            )}
           </div>
         </div>
 
@@ -693,7 +1091,7 @@ function LeadDetailDialog({
 // ─── KanbanView ───────────────────────────────────────────────────────────────
 
 function KanbanView({
-  leads, profileMap, isElevated, statusFilter, onStatusChange, onSelectLead,
+  leads, profileMap, isElevated, statusFilter, onStatusChange, onSelectLead, onTransferClick
 }: {
   leads: any[];
   profileMap: Record<string, any>;
@@ -701,6 +1099,7 @@ function KanbanView({
   statusFilter: LeadStatus | "all";
   onStatusChange: (id: number, s: LeadStatus) => void;
   onSelectLead: (l: any) => void;
+  onTransferClick?: (lead: any) => void;
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -721,7 +1120,7 @@ function KanbanView({
                 )}
                 {items.map((l) => (
                   <LeadCard key={l.id} l={l} profileMap={profileMap} isElevated={isElevated}
-                    onStatusChange={onStatusChange} onClick={() => onSelectLead(l)} />
+                    onStatusChange={onStatusChange} onClick={() => onSelectLead(l)} onTransferClick={onTransferClick} />
                 ))}
               </div>
             </Card>
@@ -735,12 +1134,14 @@ function KanbanView({
 // ─── TableView ────────────────────────────────────────────────────────────────
 
 function TableView({
-  leads, profileMap, onStatusChange, onSelectLead,
+  leads, profileMap, isElevated, onStatusChange, onSelectLead, onTransferClick
 }: {
   leads: any[];
   profileMap: Record<string, any>;
+  isElevated: boolean;
   onStatusChange: (id: number, s: LeadStatus) => void;
   onSelectLead: (l: any) => void;
+  onTransferClick?: (lead: any) => void;
 }) {
   return (
     <Card className="rounded-2xl overflow-hidden">
@@ -748,7 +1149,7 @@ function TableView({
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
             <tr>
-              {["Name", "Phone", "Property", "Budget", "Priority", "Status", "Source", "Assigned To", "Follow-up", "Move To"].map((h) => (
+              {["Name", "Phone", "Property", "Budget", "Priority", "Status", "Source", "Assigned To", "Created On", "Follow-up", "Move To"].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -784,20 +1185,35 @@ function TableView({
                 <td className="px-4 py-3 text-xs text-muted-foreground">
                   {profileMap[l.employee_id]?.name || profileMap[l.employee_id]?.email || "—"}
                 </td>
+                <td className="px-4 py-3">
+                  {l.created_at ? (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-100/60 px-2 py-1 rounded-lg border border-slate-200/60 shadow-sm whitespace-nowrap">
+                      <Clock className="h-3 w-3 text-blue-400" />
+                      {new Date(l.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                  ) : "—"}
+                </td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">
                   {l.follow_up_date ? new Date(l.follow_up_date).toLocaleDateString("en-IN") : "—"}
                 </td>
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  <Select onValueChange={(v) => onStatusChange(l.id, v as LeadStatus)}>
-                    <SelectTrigger className="h-7 text-xs rounded-lg w-32 border-dashed">
-                      <SelectValue placeholder="Move to…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUSES.filter((s) => s !== l.status).map((s) => (
-                        <SelectItem key={s} value={s} className="text-xs">{STATUS_LABEL[s]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-1">
+                    <Select onValueChange={(v) => onStatusChange(l.id, v as LeadStatus)}>
+                      <SelectTrigger className="h-7 text-xs rounded-lg w-32 border-dashed">
+                        <SelectValue placeholder="Move to…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUSES.filter((s) => s !== l.status).map((s) => (
+                          <SelectItem key={s} value={s} className="text-xs">{STATUS_LABEL[s]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {isElevated && onTransferClick && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-indigo-600 hover:bg-indigo-50" onClick={() => onTransferClick(l)}>
+                        <ArrowRightLeft className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1075,6 +1491,7 @@ function LeadsPage() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
 
   // Admin drill-down
   const [adminLevel, setAdminLevel] = useState<AdminLevel>(isManager ? "employees" : "teams");
@@ -1086,6 +1503,7 @@ function LeadsPage() {
 
   // Lead detail
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
+  const [quickTransferLead, setQuickTransferLead] = useState<any | null>(null);
 
   // ── Load data ─────────────────────────────────────────────────────────────
 
@@ -1193,9 +1611,19 @@ function LeadsPage() {
 
     if (statusFilter !== "all") base = base.filter((l) => l.status === statusFilter);
     if (priorityFilter !== "all") base = base.filter((l) => l.priority === priorityFilter);
+    if (dateFilter) {
+      base = base.filter((l) => {
+        if (!l.created_at) return false;
+        const d = new Date(l.created_at);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}` === dateFilter;
+      });
+    }
 
     return base;
-  }, [leads, q, statusFilter, priorityFilter, adminLevel, selectedEmployee, isElevated, role, user, employees]);
+  }, [leads, q, statusFilter, priorityFilter, dateFilter, adminLevel, selectedEmployee, isElevated, role, user, employees]);
 
   const stats = {
     total: filteredLeads.length,
@@ -1229,7 +1657,10 @@ function LeadsPage() {
             )}
             {/* Export — elevated only */}
             {isElevated && (
-              <ExportDialog leads={leads} profileMap={profileMap} employees={employees} />
+              <>
+                <TransferLeadsDialog isElevated={isElevated} employees={employees} leads={leads} onTransferred={load} />
+                <ExportDialog leads={leads} profileMap={profileMap} employees={employees} />
+              </>
             )}
             <AddLeadDialog isElevated={isElevated} employees={employees} onCreated={load} userId={user?.id} />
           </div>
@@ -1374,6 +1805,33 @@ function LeadsPage() {
                   </button>
                 )}
               </div>
+              
+              {/* Date Filter */}
+              <div className="relative group">
+                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground z-10">
+                  <Calendar className="h-3.5 w-3.5" />
+                </div>
+                <Input 
+                  type="date" 
+                  value={dateFilter} 
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  onClick={(e) => {
+                    try {
+                      if ('showPicker' in HTMLInputElement.prototype) {
+                        (e.target as HTMLInputElement).showPicker();
+                      }
+                    } catch (err) {}
+                  }}
+                  className="pl-8 pr-8 rounded-xl h-9 text-xs w-[140px] transition-all focus:w-[150px] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:w-full cursor-pointer"
+                  title="Filter by creation date"
+                />
+                {dateFilter && (
+                  <button onClick={() => setDateFilter("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-red-500 bg-background rounded-full transition-colors z-10">
+                    <XCircle className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
               <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
                 <SelectTrigger className="rounded-xl h-9 w-36 text-xs">
                   <Filter className="h-3 w-3 mr-1" /><SelectValue />
@@ -1398,10 +1856,10 @@ function LeadsPage() {
             {/* Content */}
             {viewMode === "kanban" ? (
               <KanbanView leads={filteredLeads} profileMap={profileMap} isElevated={isElevated}
-                statusFilter={statusFilter} onStatusChange={updateStatus} onSelectLead={setSelectedLead} />
+                statusFilter={statusFilter} onStatusChange={updateStatus} onSelectLead={setSelectedLead} onTransferClick={setQuickTransferLead} />
             ) : (
-              <TableView leads={filteredLeads} profileMap={profileMap}
-                onStatusChange={updateStatus} onSelectLead={setSelectedLead} />
+              <TableView leads={filteredLeads} profileMap={profileMap} isElevated={isElevated}
+                onStatusChange={updateStatus} onSelectLead={setSelectedLead} onTransferClick={setQuickTransferLead} />
             )}
           </motion.div>
         </AnimatePresence>
@@ -1409,7 +1867,10 @@ function LeadsPage() {
 
       {/* Lead detail */}
       <LeadDetailDialog lead={selectedLead} profileMap={profileMap}
-        isElevated={isElevated} onClose={() => setSelectedLead(null)} />
+        isElevated={isElevated} onClose={() => setSelectedLead(null)} onTransferClick={setQuickTransferLead} />
+
+      {/* Quick transfer */}
+      <QuickTransferDialog lead={quickTransferLead} employees={employees} onClose={() => setQuickTransferLead(null)} onTransferred={load} />
     </>
   );
 }

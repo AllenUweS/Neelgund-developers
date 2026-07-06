@@ -161,22 +161,27 @@ interface ViewUserDialogProps {
   user: any;
   open: boolean;
   onClose: () => void;
+  onUpdateUser?: (id: string, updates: any) => void;
 }
 
-function ViewUserDialog({ user, open, onClose }: ViewUserDialogProps) {
+function ViewUserDialog({ user, open, onClose, onUpdateUser }: ViewUserDialogProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isActive, setIsActive] = useState<boolean>(true);
+  const [updating, setUpdating] = useState(false);
   const { role: myRole } = useAuth();
   const canEdit = ["hr", "admin", "super_admin"].includes(myRole ?? "");
 
   useEffect(() => {
     if (user) {
       setAvatarUrl(user.avatar_url ?? null);
+      setIsActive(user.is_active ?? true);
     }
   }, [user]);
 
   const updateAvatar = (newUrl: string) => {
     setAvatarUrl(newUrl);
     if (user) user.avatar_url = newUrl;
+    if (onUpdateUser) onUpdateUser(user.id, { avatar_url: newUrl });
   };
 
   if (!user) return null;
@@ -205,12 +210,19 @@ function ViewUserDialog({ user, open, onClose }: ViewUserDialogProps) {
             <div className="text-center">
               <h3 className="text-lg font-semibold text-slate-900">{user.name}</h3>
               <p className="text-sm text-muted-foreground">{user.email}</p>
-              <span 
-                className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded-full font-medium text-white"
-                style={{ backgroundColor: PRIMARY_COLOR }}
-              >
-                {user.role?.replace("_", " ")}
-              </span>
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <span
+                  className="inline-block text-[10px] px-2 py-0.5 rounded-full font-medium text-white"
+                  style={{ backgroundColor: PRIMARY_COLOR }}
+                >
+                  {user.role?.replace("_", " ")}
+                </span>
+                {!isActive && (
+                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                    Inactive
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -224,7 +236,7 @@ function ViewUserDialog({ user, open, onClose }: ViewUserDialogProps) {
                 </div>
                 <div className="text-sm font-medium text-slate-700 break-all">{user.email}</div>
               </div>
-              
+
               {user.phone && (
                 <div className="p-3 bg-slate-50 rounded-xl">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -246,7 +258,7 @@ function ViewUserDialog({ user, open, onClose }: ViewUserDialogProps) {
                   <div className="text-sm font-medium text-slate-700">{user.designation}</div>
                 </div>
               )}
-              
+
               {user.department && (
                 <div className="p-3 bg-slate-50 rounded-xl">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -279,6 +291,7 @@ function ViewUserDialog({ user, open, onClose }: ViewUserDialogProps) {
                 <div className="text-sm text-slate-700">{user.profile_notes}</div>
               </div>
             )}
+
           </div>
 
           {/* Created/Updated Info */}
@@ -320,6 +333,9 @@ function HRManagementPage() {
 
   const updateAvatarInList = (userId: string, newUrl: string) =>
     setList(prev => prev.map(e => e.id === userId ? { ...e, avatar_url: newUrl } : e));
+
+  const updateUserInList = (userId: string, updates: any) =>
+    setList(prev => prev.map(e => e.id === userId ? { ...e, ...updates } : e));
 
   const roleRank: Record<string, number> = {
     super_admin: 0,
@@ -404,8 +420,8 @@ function HRManagementPage() {
   return (
     <>
       <PageHeader title="HR Management" subtitle={`${list.length} users`} action={canCreate && (
-        <Button 
-          className="rounded-xl gap-2 text-white" 
+        <Button
+          className="rounded-xl gap-2 text-white"
           style={{ backgroundColor: PRIMARY_COLOR }}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0e3a6b'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = PRIMARY_COLOR}
@@ -424,20 +440,18 @@ function HRManagementPage() {
               key={filter.label}
               type="button"
               onClick={() => setActiveRole(filter.label)}
-              className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition duration-200 ${
-                active 
-                  ? "text-white shadow-lg" 
+              className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition duration-200 ${active
+                  ? "text-white shadow-lg"
                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-              }`}
+                }`}
               style={active ? { backgroundColor: PRIMARY_COLOR, borderColor: PRIMARY_COLOR } : {}}
             >
-              {filter.label} 
-              <span 
-                className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                  active 
-                    ? "bg-white/20 text-white" 
+              {filter.label}
+              <span
+                className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${active
+                    ? "bg-white/20 text-white"
                     : "bg-slate-100 text-slate-600"
-                }`}
+                  }`}
                 style={!active ? { backgroundColor: `${PRIMARY_COLOR}10`, color: PRIMARY_COLOR } : {}}
               >
                 {count}
@@ -449,10 +463,10 @@ function HRManagementPage() {
 
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: PRIMARY_COLOR }} />
-        <Input 
-          value={q} 
-          onChange={e => setQ(e.target.value)} 
-          placeholder="Search name, email, etc…" 
+        <Input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Search name, email, etc…"
           className="pl-8 rounded-xl h-9 text-sm"
           style={{ borderColor: `${PRIMARY_COLOR}30` }}
           onFocus={(e) => e.target.style.borderColor = PRIMARY_COLOR}
@@ -471,8 +485,8 @@ function HRManagementPage() {
                   <p className="text-xs uppercase tracking-[0.24em]" style={{ color: PRIMARY_COLOR }}>{ROLE_LABEL[roleKey]}</p>
                   <h2 className="text-xl font-semibold text-slate-900">{group.length} {group.length === 1 ? "member" : "members"}</h2>
                 </div>
-                <Badge 
-                  variant="secondary" 
+                <Badge
+                  variant="secondary"
                   className="rounded-full border px-3 py-1 text-xs uppercase tracking-[0.16em] shadow-sm"
                   style={{ backgroundColor: `${PRIMARY_COLOR}10`, borderColor: `${PRIMARY_COLOR}20`, color: PRIMARY_COLOR }}
                 >
@@ -482,8 +496,8 @@ function HRManagementPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {group.map((e, i) => (
                   <motion.div key={e.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -3 }} whileTap={{ scale: 0.995 }} transition={{ delay: i * 0.02, duration: 0.2 }}>
-                    <Card 
-                      onClick={() => handleUserClick(e)} 
+                    <Card
+                      onClick={() => handleUserClick(e)}
                       className="cursor-pointer p-4 rounded-3xl bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg group"
                       style={{ borderColor: `${PRIMARY_COLOR}20` }}
                       onMouseEnter={(e) => e.currentTarget.style.borderColor = PRIMARY_COLOR}
@@ -503,12 +517,17 @@ function HRManagementPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="font-semibold text-sm text-slate-900">{e.name}</div>
-                            <span 
+                            <span
                               className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-white"
                               style={{ backgroundColor: PRIMARY_COLOR }}
                             >
                               {e.role?.replace("_", " ")}
                             </span>
+                            {e.is_active === false && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                                Inactive
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground truncate mt-0.5">{e.email}</div>
                           {e.designation && <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Briefcase className="h-3 w-3" style={{ color: PRIMARY_COLOR }} />{e.designation}</div>}
@@ -540,9 +559,9 @@ function HRManagementPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <Label className="text-xs text-slate-600">Full Name *</Label>
-                <Input 
-                  value={form.name} 
-                  onChange={e => setForm({ ...form, name: e.target.value })} 
+                <Input
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
                   className="mt-1 rounded-xl h-10"
                   style={{ borderColor: `${PRIMARY_COLOR}30` }}
                   onFocus={(e) => e.target.style.borderColor = PRIMARY_COLOR}
@@ -551,10 +570,10 @@ function HRManagementPage() {
               </div>
               <div>
                 <Label className="text-xs text-slate-600">Email *</Label>
-                <Input 
-                  type="email" 
-                  value={form.email} 
-                  onChange={e => setForm({ ...form, email: e.target.value })} 
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
                   className="mt-1 rounded-xl h-10"
                   style={{ borderColor: `${PRIMARY_COLOR}30` }}
                   onFocus={(e) => e.target.style.borderColor = PRIMARY_COLOR}
@@ -563,10 +582,10 @@ function HRManagementPage() {
               </div>
               <div>
                 <Label className="text-xs text-slate-600">Password *</Label>
-                <Input 
-                  type="password" 
-                  value={form.password} 
-                  onChange={e => setForm({ ...form, password: e.target.value })} 
+                <Input
+                  type="password"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
                   className="mt-1 rounded-xl h-10"
                   style={{ borderColor: `${PRIMARY_COLOR}30` }}
                   onFocus={(e) => e.target.style.borderColor = PRIMARY_COLOR}
@@ -576,7 +595,7 @@ function HRManagementPage() {
               <div>
                 <Label className="text-xs text-slate-600">Role</Label>
                 <Select value={form.role} onValueChange={v => setForm({ ...form, role: v })}>
-                  <SelectTrigger 
+                  <SelectTrigger
                     className="mt-1 rounded-xl h-10"
                     style={{ borderColor: `${PRIMARY_COLOR}30` }}
                   >
@@ -587,9 +606,9 @@ function HRManagementPage() {
               </div>
               <div>
                 <Label className="text-xs text-slate-600">Phone</Label>
-                <Input 
-                  value={form.phone} 
-                  onChange={e => setForm({ ...form, phone: e.target.value })} 
+                <Input
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
                   className="mt-1 rounded-xl h-10"
                   style={{ borderColor: `${PRIMARY_COLOR}30` }}
                   onFocus={(e) => e.target.style.borderColor = PRIMARY_COLOR}
@@ -598,9 +617,9 @@ function HRManagementPage() {
               </div>
               <div>
                 <Label className="text-xs text-slate-600">Department</Label>
-                <Input 
-                  value={form.department} 
-                  onChange={e => setForm({ ...form, department: e.target.value })} 
+                <Input
+                  value={form.department}
+                  onChange={e => setForm({ ...form, department: e.target.value })}
                   className="mt-1 rounded-xl h-10"
                   style={{ borderColor: `${PRIMARY_COLOR}30` }}
                   onFocus={(e) => e.target.style.borderColor = PRIMARY_COLOR}
@@ -609,9 +628,9 @@ function HRManagementPage() {
               </div>
               <div>
                 <Label className="text-xs text-slate-600">Designation</Label>
-                <Input 
-                  value={form.designation} 
-                  onChange={e => setForm({ ...form, designation: e.target.value })} 
+                <Input
+                  value={form.designation}
+                  onChange={e => setForm({ ...form, designation: e.target.value })}
                   className="mt-1 rounded-xl h-10"
                   style={{ borderColor: `${PRIMARY_COLOR}30` }}
                   onFocus={(e) => e.target.style.borderColor = PRIMARY_COLOR}
@@ -622,7 +641,7 @@ function HRManagementPage() {
                 <div className="col-span-2">
                   <Label className="text-xs text-slate-600">Assign Manager</Label>
                   <Select value={form.manager_id} onValueChange={v => setForm({ ...form, manager_id: v })}>
-                    <SelectTrigger 
+                    <SelectTrigger
                       className="mt-1 rounded-xl h-10"
                       style={{ borderColor: `${PRIMARY_COLOR}30` }}
                     >
@@ -636,9 +655,9 @@ function HRManagementPage() {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Cancel</Button>
-            <Button 
-              onClick={createUser} 
-              disabled={busy} 
+            <Button
+              onClick={createUser}
+              disabled={busy}
               className="rounded-xl text-white"
               style={{ backgroundColor: PRIMARY_COLOR }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0e3a6b'}
@@ -655,6 +674,7 @@ function HRManagementPage() {
         user={selectedUser}
         open={viewOpen}
         onClose={() => setViewOpen(false)}
+        onUpdateUser={updateUserInList}
       />
     </>
   );

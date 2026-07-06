@@ -59,7 +59,7 @@ function AppLayout() {
 
       <main className="flex-1 overflow-y-auto flex flex-col relative">
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between p-4 border-b bg-white sticky top-0 z-30 shadow-sm h-16">
+        <div className="md:hidden flex items-center justify-between px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] border-b bg-white sticky top-0 z-30 shadow-sm min-h-[4rem]">
           <div className="flex items-center gap-2">
             <img src="/logo-v4.png?v=20260612" alt="Neelgund Developers" className="h-8 w-auto object-contain" />
           </div>
